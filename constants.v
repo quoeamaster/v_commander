@@ -18,12 +18,15 @@
 
 module main
 
-import os
+pub const (
+	status_ok 			= 1
+	status_fail 		= 2
+	status_unknown 	= 100
 
-fn main() {
-	c := Command{
-		name: "test_cmd"
-	}
-	println(c)
-	println(os.args[1..os.args.len])
-}
+	flag_type_string 				= i8(10)
+	flag_type_int 					= i8(20)
+	flag_type_i8 					= i8(21)
+	flag_type_bool 				= i8(30)
+	flag_type_float 				= i8(40)
+	flag_type_map_of_string 	= i8(50) // e.g. -E age=12 -E name=Peter -> { "age": 12, "name": "Peter" }
+)

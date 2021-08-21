@@ -1,3 +1,6 @@
 
 # local scripts
 scripts/setEnv.sh
+
+# feature list for development housekeep only
+_feature.list
