@@ -153,6 +153,7 @@ pub fn (mut c Command) set_flag(is_local bool, flag string, short_flag string, f
 	}
 }
 
+// parse_arguments - parse CLI arguments and associate them with the available flag(s).
 fn (mut c Command) parse_arguments() ?bool {
 	args := c.get_arguments()
 	args_len := args.len
@@ -277,10 +278,35 @@ fn (mut c Command) parse_arguments() ?bool {
 			break
 		}
 	}
+	// the "required" flag check
+	c.is_all_required_flags_set()?
 	// [debug]
 	//println("## local_flags_map:\n${c.parsed_local_flags_map}")
 	//println("## fwd_flags_map:\n${c.parsed_forwardable_flags_map}")
 	//println("## sub_command_sequences -> $sub_command_sequence")
+	return true
+}
+
+// is_all_required_flags_set - method to check whether all required flag(s) are set.
+fn (c Command) is_all_required_flags_set() ?bool {
+	// local flags
+	for flag in c.local_flags {
+		if flag.required {
+			flag_key := c.build_flag_key(flag.flag, flag.short_flag)
+			if (flag_key in c.parsed_local_flags_map) == false {
+				return error("[Command][is_all_required_flags_set] a required local flag [${flag.flag}/${flag.short_flag}] is missing.")
+			}
+		}
+	}
+	// forwardable flags
+	for flag in c.forwardable_flags {
+		if flag.required {
+			flag_key := c.build_flag_key(flag.flag, flag.short_flag)
+			if (flag_key in c.parsed_forwardable_flags_map) == false {
+				return error("[Command][is_all_required_flags_set] a required forwardable flag [${flag.flag}/${flag.short_flag}] is missing.")
+			}
+		}
+	}
 	return true
 }
 
@@ -382,38 +408,205 @@ fn (c Command) get_flag_by_name(flag_name string) (Flag, bool) {
 	return f, true
 }
 
-// e.g. args -> --config /var/app.config -E age=18 --trace
-//  outcome would be
-//  - config:"/var/app.config"
-//  - E (map or array) age:18
-//  - trace:true
+// build_flag_key - return the flag key based on values provided. 
+// Simple rule is if [flag] is non "", use it as key; else use [flag_short]. 
+// However if both [flag] and [flag_short] are "", return "" as well, which means INVALID.
+fn (c Command) build_flag_key(flag string, flag_short string) string {
+	if flag == "" && flag_short == "" {
+		return ""
+	}
+	// remove "--" or "-"
+	mut f := flag.str()
+	mut f_short := flag_short.str()
+	if f.starts_with("--") {
+		f = f.substr(2, f.len)
+	}
+	if f_short.starts_with("-") {
+		f_short = f_short.substr(1, f_short.len)
+	}
+	// return long or short flag?
+	if f != "" {
+		return f
+	}
+	return f_short
+}
 
-// e.g. args + sub-command -> list --config /var/app.config -E age=18 --trace
-//  outcome would be
-//  - config:"/var/app.config"
-//  - E (map or array) age:18
-//  - trace:true
-//  subcommand -> list (checks through the c.sub_commands.name attribute); "list" could be at any position as well.
-//   if "list" was not a valid sub-command (not exists), will throw error.
-//   if "list" is VALID, will let the sub-command to do the parsing of local-flag(s); 
-//    remember forwardable-flag(s) MUST be handled by the parent command and pass to the sub-command(s).
-
-
-/*  TODO: handle the parse method before implementing the get_xxx_flag_value... since the arguments map has not been handled...
-
-pub fn (c Command) get_string_flag_value(is_local bool, flag string, short_flag string) ?string {
+// get_string_flag_value - return the flag's string value if valid.
+pub fn (c Command) get_string_flag_value(is_local bool, flag string, flag_short string) ?string {
+	// get the flag name (rule, if flag is provided use it, else use the flag_short value)
+	flag_name := c.build_flag_key(flag, flag_short)
+	if flag_name == "" {
+		return error("[Command][get_string_flag_value] invalid flag values, both flags are ''.")
+	}
+	// search for the flag_name from the parsed-flag repositories
 	if is_local == true {
-		for f in c.local_flags {
-			if f.flag == flag || f.short_flag == short_flag {
-				return 
-			}
+		s := c.parsed_local_flags_map[flag_name]
+		match s {
+			string { return s }
+			else { return error("[Command][get_string_flag_value] local flag either not-found or the data-type is not a 'string'.") }
 		}
 	} else {
-
+		s := c.parsed_forwardable_flags_map[flag_name]
+		match s {
+			string { return s }
+			else { return error("[Command][get_string_flag_value] forwardable flag either not-found or the data-type is not a 'string'.") }
+		}
 	}
-	return error("[Command][get_string_flag_value] flag {$flag}/{$short_flag} not found.")
+	// this line should not be invoked by any means... though
+	return error("[Command][get_string_flag_value] flag {$flag}/{$flag_short} not found.")
 }
-*/
+
+// get_int_flag_value - return the flag's int value if valid.
+pub fn (c Command) get_int_flag_value(is_local bool, flag string, flag_short string) ?int {
+	flag_name := c.build_flag_key(flag, flag_short)
+	if flag_name == "" {
+		return error("[Command][get_int_flag_value] invalid flag values, both flags are ''.")
+	}
+	// search for the flag_name from the parsed-flag repositories
+	if is_local == true {
+		s := c.parsed_local_flags_map[flag_name]
+		match s {
+			int { return s }
+			else { return error("[Command][get_int_flag_value] local flag either not-found or the data-type is not a 'int'.") }
+		}
+	} else {
+		s := c.parsed_forwardable_flags_map[flag_name]
+		match s {
+			int { return s }
+			else { return error("[Command][get_int_flag_value] forwardable flag either not-found or the data-type is not a 'int'.") }
+		}
+	}
+}
+
+// get_i8_flag_value - return the flag's i8 value if valid.
+pub fn (c Command) get_i8_flag_value(is_local bool, flag string, flag_short string) ?i8 {
+	flag_name := c.build_flag_key(flag, flag_short)
+	if flag_name == "" {
+		return error("[Command][get_i8_flag_value] invalid flag values, both flags are ''.")
+	}
+	// search for the flag_name from the parsed-flag repositories
+	if is_local == true {
+		s := c.parsed_local_flags_map[flag_name]
+		match s {
+			i8 { return s }
+			else { return error("[Command][get_i8_flag_value] local flag either not-found or the data-type is not a 'i8'.") }
+		}
+	} else {
+		s := c.parsed_forwardable_flags_map[flag_name]
+		match s {
+			i8 { return s }
+			else { return error("[Command][get_i8_flag_value] forwardable flag either not-found or the data-type is not a 'i8'.") }
+		}
+	}
+}
+
+// get_bool_flag_value - return the flag's bool value if valid.
+pub fn (c Command) get_bool_flag_value(is_local bool, flag string, flag_short string) ?bool {
+	flag_name := c.build_flag_key(flag, flag_short)
+	if flag_name == "" {
+		return error("[Command][get_bool_flag_value] invalid flag values, both flags are ''.")
+	}
+	// search for the flag_name from the parsed-flag repositories
+	if is_local == true {
+		s := c.parsed_local_flags_map[flag_name]
+		match s {
+			bool { return s }
+			else { return error("[Command][get_bool_flag_value] local flag either not-found or the data-type is not a 'bool'.") }
+		}
+	} else {
+		s := c.parsed_forwardable_flags_map[flag_name]
+		match s {
+			bool { return s }
+			else { return error("[Command][get_bool_flag_value] forwardable flag either not-found or the data-type is not a 'bool'.") }
+		}
+	}
+}
+
+// get_float_flag_value - return the flag's float value if valid.
+pub fn (c Command) get_float_flag_value(is_local bool, flag string, flag_short string) ?f32 {
+	flag_name := c.build_flag_key(flag, flag_short)
+	if flag_name == "" {
+		return error("[Command][get_float_flag_value] invalid flag values, both flags are ''.")
+	}
+	// search for the flag_name from the parsed-flag repositories
+	if is_local == true {
+		s := c.parsed_local_flags_map[flag_name]
+		match s {
+			f32 { return s }
+			else { return error("[Command][get_float_flag_value] local flag either not-found or the data-type is not a 'float'.") }
+		}
+	} else {
+		s := c.parsed_forwardable_flags_map[flag_name]
+		match s {
+			f32 { return s }
+			else { return error("[Command][get_float_flag_value] forwardable flag either not-found or the data-type is not a 'float'.") }
+		}
+	}
+}
+
+// get_map_of_string_flag_value - return the flag's map-of-string value if valid.
+pub fn (c Command) get_map_of_string_flag_value(is_local bool, flag string, flag_short string) ?map[string]string {
+	flag_name := c.build_flag_key(flag, flag_short)
+	if flag_name == "" {
+		return error("[Command][get_map_of_string_flag_value] invalid flag values, both flags are ''.")
+	}
+	// search for the flag_name from the parsed-flag repositories
+	if is_local == true {
+		s := c.parsed_local_flags_map[flag_name]
+		match s {
+			map[string]string { return s }
+			else { return error("[Command][get_map_of_string_flag_value] local flag either not-found or the data-type is not a 'float'.") }
+		}
+	} else {
+		s := c.parsed_forwardable_flags_map[flag_name]
+		match s {
+			map[string]string { return s }
+			else { return error("[Command][get_map_of_string_flag_value] forwardable flag either not-found or the data-type is not a 'float'.") }
+		}
+	}
+}
+
+// remove_flag - remove a Flag.
+pub fn (mut c Command) remove_flag(is_local bool, flag string, flag_short string) bool {
+	mut is_removed := false
+	flag_key := c.build_flag_key(flag, flag_short)
+	if is_local {
+		// remove from []Flag repository
+		for idx, f in c.local_flags {
+			if f.flag == flag_key || f.short_flag == flag_key {
+				c.local_flags.delete(idx)
+				is_removed = true
+				break
+			}
+		}
+		// also remove from parsed map[string]Any repository
+		if is_removed && (flag_key in c.parsed_local_flags_map) {
+			c.parsed_local_flags_map.delete(flag_key)
+		}
+
+	} else {
+		// remove from []Flag repository
+		for idx, f in c.forwardable_flags {
+			if f.flag == flag_key || f.short_flag == flag_key {
+				c.forwardable_flags.delete(idx)
+				is_removed = true
+				break
+			}
+		}
+		// also remove from parsed map[string]Any repository
+		if is_removed && (flag_key in c.parsed_forwardable_flags_map) {
+			c.parsed_forwardable_flags_map.delete(flag_key)
+		}
+	}
+	return is_removed
+}
+
+// TODO: remove_flag()
+
+// TODO: a way to forward the forwardable flags to the sub-commands ... e.g. calling a fn (parent_command.get_parsed_forwardable_flags)
+// -> check if "parent" reference is valid, if so, call the grand-parent-cmd.get_parsed_forwardable_flags();
+// -> merge all parent level parsed forwardable flag(s) and done~
+
 
 // TODO: set flags (local vs forwardable) no varp variant, instead use getFlagXXXValue()
 // TODO: isFlagSet(flagName)

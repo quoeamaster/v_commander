@@ -18,6 +18,8 @@
 
 module main
 
+import os
+
 // test_structure_building_1 - build a Command structure plus setting the "help" function.
 fn test_structure_building_1() {
 	println("\n### command_structures_test.test_structure_building_1 ###\n")
@@ -203,7 +205,7 @@ fn test_args_parsing_0() {
 		}
 	}
 
-	// TODO: handling on parsing...
+	// handling on parsing...
 	cmd = Command{
 		name: "parent2"
 	}
@@ -240,6 +242,7 @@ fn test_args_parsing_0() {
 }
 
 // test_adding_flags - test adding local / forwardable flags
+// also test on parsing the flags + getting back values associated with the flags.
 fn test_adding_flags() {
 	println("\n### command_structures_test.test_adding_flags ###\n")
 
@@ -257,7 +260,274 @@ fn test_adding_flags() {
 	assert cmd.forwardable_flags.len == 2
 	// [debug]
 	println("flags: local ->\n${cmd.local_flags}\nforwardable ->\n${cmd.forwardable_flags}")
+
+	// * test on -> parse the arguments~~
+	cmd = Command{
+		name: "parent2"
+	}
+	cmd.set_flag(true, "help", "", flag_type_bool, "", false)
+	cmd.set_flag(true, "config", "", flag_type_string, "", false)
+	cmd.set_flag(false, "", "E", flag_type_map_of_string, "", false)
+	cmd.set_arguments([ "--config", "/app/config.json", "-E", "age=28", "-E", "name=jennie", "--help" ])
+	// normal scenario -> parse_arguments() is a private fn and hence should ONLY be invoked within the [run] fn automatically.
+	cmd.parse_arguments() or {
+		panic("unexpected error in parsing arguments, reason [$err]")
+	}
+	assert cmd.args.len == 7
+	mut s := cmd.get_string_flag_value(true, "config", "") or {
+		panic("unexpected error in getting a valid flag, reason: $err")
+	}
+	assert s == "/app/config.json"
+	// supply both flag and flag_short name, since flag is non "", 
+	// will use that as key for search; hence flag_short wont' affect the result.
+	s = cmd.get_string_flag_value(true, "config", "non-exist-key-but-not-affected") or {
+		panic("unexpected error in getting a valid flag, reason: $err")
+	}
+	assert s == "/app/config.json"
+	// non existing key
+	s = cmd.get_string_flag_value(true, "unknown", "unknown") or {
+		idx := err.msg.index("flag either not-found or the data-type is not a 'string'") or {
+			panic("unexpected error in getting a valid flag, reason: $err")
+		}
+		if idx == -1 {
+			panic("unexpected error in getting a valid flag, reason: $err")
+		}
+		""
+	}
+	assert s == ""
+	// non found in local parsed flags...
+	s = cmd.get_string_flag_value(false, "unknown", "unknown") or {
+		idx := err.msg.index("flag either not-found or the data-type is not a 'string'") or {
+			panic("unexpected error in getting a valid flag, reason: $err")
+		}
+		if idx == -1 {
+			panic("unexpected error in getting a valid flag, reason: $err")
+		}
+		""
+	}
+	assert s == ""
+
+	// * test on parsing + run
+	cmd = Command{
+		name: "parent3"
+	}
+	cmd.set_flag(true, "", "c", flag_type_string, "config file", false)
+	cmd.set_flag(true, "age", "a", flag_type_int, "age number in int", false)
+	cmd.set_flag(true, "classification", "", flag_type_i8, "classification number", false)
+	cmd.set_flag(true, "", "G", flag_type_bool, "gender, T = Male, F = Female", false)
+	cmd.set_flag(true, "price", "", flag_type_float, "price in floating point e.g. 12.99", false)
+	cmd.set_flag(true, "params", "p", flag_type_map_of_string, "key value pair parameters", false)
+	cmd.set_arguments([ "-c", "/app/config.json", "--age", "23", "--classification", "4", 
+		"-G", "false", "--price", "12.99", "-p", "stage=a12", "--params", "factor=NONE" ])
+	mut result := cmd.run(fn (c &Command, args []string) ?i8 {
+		// biz logic ... etc
+		assert c.args.len == 14
+		return i8(status_ok)
+	}) or {
+		panic("unexpected error, reason: $err")
+		i8(status_fail)
+	}
+	assert result == i8(status_ok)
+	// flag level checks
+	// map-of-string
+	m3 := cmd.get_map_of_string_flag_value(true, "params", "p") or {
+		panic("unexpected map-string extraction, reason: $err")
+	}
+	assert m3.len == 2
+	assert m3["factor"] == "NONE"
+	assert m3["stage"] == "a12"
+	// string
+	s3 := cmd.get_string_flag_value(true, "", "c") or {
+		panic("unexpected string extraction, reason: $err")
+	}
+	assert s3 == "/app/config.json"
+	// int
+	int3 := cmd.get_int_flag_value(true, "age", "") or {
+		panic("unexpected int extraction, reason: $err")
+	}
+	assert int3 == 23
+	// i8
+	i3 := cmd.get_i8_flag_value(true, "classification", "") or {
+		panic("unexpected i8 extraction, reason: $err")
+	}
+	// somehow auto cast is possible between int and i8...
+	assert i3 == 4
+	// bool
+	bool3 := cmd.get_bool_flag_value(true, "", "G") or {
+		panic("unexpected bool extraction, reason: $err")
+	}
+	assert bool3 == false
+	// f32 / float
+	float32 := cmd.get_float_flag_value(true, "price", "") or {
+		panic("unexpected float extraction, reason: $err")
+	}
+	// by default float is float64... need a cast in this case
+	assert float32 == f32(12.99)
+
+	// * test on setting a non available flag cause error
+	cmd = Command{
+		name: "parent4"
+	}
+	cmd.set_arguments([ "-h", "--unknown", "999" ])
+	cmd.set_flag(true, "help", "h", flag_type_bool, "help?", true)
+	cmd.set_flag(true, "", "c", flag_type_string, "config file", false)
+	// # should throw exception -> "[Command][parse_arguments] invalid flag --unknown."
+	cmd.parse_arguments() or {
+		idx := err.msg.index("invalid flag: -") or {
+			panic("expected error message to contain 'invalid flag:', actual: $err")
+		}
+		if idx == -1 {
+			panic("expected error message to contain 'invalid flag:', actual: $err")
+		}
+	}
+
+	// * fail case on NOT setting a required flag through arguments...
+	cmd = Command{
+		name: "parent5"
+	}
+	cmd.set_arguments([ "-E", "age=12", "-E", "name=mary" ])
+	cmd.set_flag(true, "", "E", flag_type_map_of_string, "", false)
+	cmd.run(fn (c &Command, args []string) ?i8 {
+		assert c.args.len == 4
+		return i8(status_ok)
+	}) or {
+		panic("unexpected error on running a handler, reason: $err")
+	}
+	// add a new flag and run again
+	cmd.set_flag(true, "file", "", flag_type_string, "", true)
+	cmd.set_arguments([ "-E", "age=32" ])
+	result = cmd.run(fn (c &Command, args []string) ?i8 {
+		assert c.args.len == 2
+		return i8(status_ok)
+	}) or {
+		idx := err.msg.index("a required local flag [file/] is missing") or {
+			panic("expect error is related to missing required flag, actual: $err")
+		}
+		i8(status_fail)
+	}
+	assert result == i8(status_fail)
+	// add back the "required" flag
+	cmd.set_arguments([ "-E", "age=32", "--file", "/app/notes.md" ])
+	result = cmd.run(fn (c &Command, args []string) ?i8 {
+		assert c.args.len == 4
+		return i8(status_ok)
+	}) or {
+		panic("unexpected error, reason: $err")
+		i8(status_fail)
+	}
+	assert result == i8(status_ok)
+
+	// * test on reading the file provided through "--file" flag
+	// * mimic a real world use case on how to retrieve flag value(s)
+	cmd.set_arguments([ "-C", "a sample file with some LOREM IPSUM", "--file", "./testdata/sample.txt" ])
+	cmd.set_flag(false, "", "C", flag_type_string, "", true)
+	result = cmd.run(fn (c &Command, args []string) ?i8 {
+		// retrieve the flag values
+		// catch the error and re-throw in a better formatted way.
+		file := c.get_string_flag_value(true, "file", "") or {
+			return error("[run] failed to retrieve the 'file' value, reason: $err")
+		}
+		// don't catch... just throw error :)
+		contains := c.get_string_flag_value(false, "", "C")?
+
+		// read the file...
+		content := os.read_file(file)?
+		idx := content.index(contains) or {
+			return error("[run] the target file [$file] contents do NOT contain the following [$contains].")
+		}
+		println("[run] contents read -> $content\n")
+
+		if idx != -1 {
+			return i8(status_ok)
+		}
+		return i8(status_fail)
+	}) or {
+		panic("unexpected error, reason: $err")
+		i8(status_fail)
+	}
+	assert result == i8(status_ok)
 }
+
+// test_remove_flag - test removing flags from local / forwardable Flag repositories.
+fn test_remove_flag() {
+	println("\n### command_structures_test.test_remove_flag ###\n")
+
+	mut cmd := Command{
+		name: "c1"
+	}
+	// * test on removing a local flag and forwardable flag
+	cmd.set_flag(true, "contains", "C", flag_type_string, "contains provided text", false)
+	cmd.set_flag(false, "", "a", flag_type_i8, "age value", true)
+	cmd.set_flag(false, "", "b", flag_type_i8, "best score", false)
+	cmd.set_arguments([ "--contains" "how are you TODAY?", "-a", "12", "-b", "100" ])
+	mut b_result := cmd.parse_arguments() or {
+		panic("unexpected error in parsing arguments, reason: $err")
+	}
+	assert cmd.remove_flag(true, "contains", "C") == true
+	assert cmd.remove_flag(false, "", "a") == true
+	assert cmd.local_flags.len == 0
+	assert cmd.forwardable_flags.len == 1
+	assert cmd.parsed_local_flags_map.len == 0
+	assert cmd.parsed_forwardable_flags_map.len == 1
+
+	// * test on after removing flags, the parse would fail due to invalid flag
+	b_result = cmd.parse_arguments() or {
+		idx := err.msg.index("[Command][parse_arguments] invalid flag:") or {
+			panic("unexpected error in parsing arguments, reason: $err")
+		}
+		false
+	}
+	assert b_result == false
+
+	// * test on removing a valid key but on the wrong repo; should return false...
+	cmd.set_flag(true, "contains", "C", flag_type_string, "contains provided text", false)
+	cmd.set_flag(false, "", "a", flag_type_i8, "age value", true)
+	cmd.set_arguments([ "--contains" "how are you TODAY?", "-a", "12", "-b", "100" ])
+	b_result = cmd.parse_arguments() or {
+		panic("unexpected error in parsing arguments, reason: $err")
+	}
+	assert b_result == true
+	assert cmd.remove_flag(false, "contains", "C") == false
+	assert cmd.local_flags.len == 1
+	assert cmd.parsed_local_flags_map.len == 1
+	assert cmd.forwardable_flags.len == 2
+	assert cmd.parsed_forwardable_flags_map.len == 2
+
+	assert cmd.remove_flag(true, "", "b") == false
+	assert cmd.local_flags.len == 1
+	assert cmd.parsed_local_flags_map.len == 1
+	assert cmd.forwardable_flags.len == 2
+	assert cmd.parsed_forwardable_flags_map.len == 2
+
+	// * test on removing a non exist flag in both repo
+	assert cmd.remove_flag(true, "unknown", "u") == false
+	assert cmd.local_flags.len == 1
+	assert cmd.parsed_local_flags_map.len == 1
+	assert cmd.forwardable_flags.len == 2
+	assert cmd.parsed_forwardable_flags_map.len == 2
+
+	assert cmd.remove_flag(false, "", "u") == false
+	assert cmd.local_flags.len == 1
+	assert cmd.parsed_local_flags_map.len == 1
+	assert cmd.forwardable_flags.len == 2
+	assert cmd.parsed_forwardable_flags_map.len == 2
+
+	// * test on after removing non existing keys, should NOT have error
+	b_result = cmd.parse_arguments() or {
+		panic("unexpected error in parsing arguments, reason: $err")
+	}
+	assert b_result == true
+	i81 := cmd.get_i8_flag_value(false, "", "b") or {
+		panic("failed to parse i8 flag [-b], reason: $err")
+	}
+	assert i81 == i8(100)
+}
+
+
+
+
+
+
 
 // *** VLang bug discoveries... ***
 
