@@ -20,7 +20,7 @@ module main
 
 import os
 import strconv
-
+ 
 // Any - is a sum-type of acceptable values within the CLI.
 type Any = i8|int|string|bool|f32| map[string]string | map[string]Any
 
@@ -53,12 +53,13 @@ mut:
 	// or else use the [short_flag] name as the key
 	parsed_local_flags_map 			map[string]Any = map[string]Any{}
 	parsed_forwardable_flags_map 	map[string]Any = map[string]Any{}
-
 // TODO: test on the stdout functionality... can write??? can be attached???
 // TODO: add an output method ... hence printing the output to stdout + returning that string content to the caller... (good for debug)
 	// stdout - the output stream for the CLI's output.
-	stdout os.File
-
+	stdout os.File = os.stdout()
+	// out_buffer - actual backing buffer for output. An auto flush is done after finished executing the [run] fn.
+	out_buffer Stringbuffer = new_string_buffer(0)
+	
 pub mut:
 	// name - the command's name (e.g. csv)
 	name string
@@ -81,7 +82,7 @@ pub fn (mut c Command) add_commands(cmds ...Command) {
 }
 
 // run - set the provided [handler] to the CLI and execute it. [run] provides the core functionality for this CLI.
-pub fn (mut c Command) run(handler ...fn(cmd &Command, args []string) ?i8) ?i8 {
+pub fn (mut c Command) run(handler ...fn(mut cmd &Command, args []string) ?i8) ?i8 {
 	if handler.len != 0 {
 		c.run_handler = handler[0]
 	} else {
@@ -95,6 +96,13 @@ pub fn (mut c Command) run(handler ...fn(cmd &Command, args []string) ?i8) ?i8 {
 	// execute the run_handler
 	status := c.run_handler(c, c.get_arguments()) or {
 		return error("[Command][run] error found, reason: $err")
+	}
+	// flush output to stdout
+	mut stream := c.stdout
+	// [BUG] ?? required a newline or `\0` to delimited the end of a string... c style null-delimited string.
+	mut s_content := c.out_buffer.to_string(false) + "\n"
+	stream.write(s_content.bytes()) or {
+		return error("[Command][run] error in writing output to stdout, reason: $err")
 	}
 	return status
 }
@@ -601,13 +609,93 @@ pub fn (mut c Command) remove_flag(is_local bool, flag string, flag_short string
 	return is_removed
 }
 
-// TODO: remove_flag()
+// write_to_output - write contents to the output stream. Default is stdout.
+pub fn (mut c Command) write_to_output(content []byte) ?int {
+	// [doc] convert string to []byte -> https://modules.vlang.io/#string.bytes
+	// example. "hello world".bytes() -> []byte
+
+	//return c.stdout.write(content)
+	return c.out_buffer.write(content)
+}
+
+// [future]
+pub fn (mut c Command) read_all_from_stream() []byte {
+	// TODO: test + impl set_output() AND read_all_from_stream()
+	// read by supplying a buffer -> https://modules.vlang.io/os.html#File.read
+	// append the content by -> https://modules.vlang.io/strings.html#Builder 
+	// actual write fn -> https://modules.vlang.io/strings.html#Builder.write 
+	// convert to string -> https://modules.vlang.io/strings.html#Builder.str
+	// convert from []byte to string -> string(b_content)
+	
+	/*
+	mut data := strings.new_builder(0)
+
+	mut buf := []byte{ len: 1024, cap: 1024 }
+	for {
+		num := c.stdout.read(mut buf) or {
+			return "ERROR in reading stream data, $err".bytes()
+		} 
+		if num == 0 || num == -1 {
+			// end of stream met...
+			break
+		} else {
+			data.write(buf[0..num]) or {
+				return "ERROR in appending stream data, $err".bytes()
+			}
+		}
+	}
+	return data.str().bytes()
+	*/
+
+	// [debug]
+	//println("#$#$#$#$ -> ${c.out_buffer.len} vs ${c.out_buffer.cap}")
+	mut b_content := c.out_buffer.to_string(false).bytes()
+	// remove leading + trailing '\0'
+	// handling trailing '\0'
+	mut idx := b_content.len - 1
+	mut has_zero_char := false
+	for {
+		if idx == -1 {
+			break
+		}
+		if b_content[idx] != `\0` {
+			break
+		}
+		has_zero_char = true
+		idx--
+	}
+	if has_zero_char {
+		b_content = b_content[0..idx+1]
+	}
+	// handling leading '\0'
+	has_zero_char = false
+	idx = 0
+	for {
+		if idx == b_content.len {
+			break
+		}
+		if b_content[idx] != `\0` {
+			break
+		}
+		has_zero_char = true
+		idx++
+	}
+	if has_zero_char {
+		b_content = b_content[idx..b_content.len]
+	}
+	// remove trailing `\n` (only remove once)
+	/*
+	idx = b_content.len-1
+	if b_content[idx] == `\n` {
+		b_content = b_content[0..b_content.len-1]
+	}
+	*/
+	return b_content
+}
 
 // TODO: a way to forward the forwardable flags to the sub-commands ... e.g. calling a fn (parent_command.get_parsed_forwardable_flags)
 // -> check if "parent" reference is valid, if so, call the grand-parent-cmd.get_parsed_forwardable_flags();
 // -> merge all parent level parsed forwardable flag(s) and done~
 
 
-// TODO: set flags (local vs forwardable) no varp variant, instead use getFlagXXXValue()
 // TODO: isFlagSet(flagName)
-// TODO: getFlagBoolValue() getFlagStringValue()

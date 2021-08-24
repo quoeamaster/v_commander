@@ -19,6 +19,8 @@
 module main
 
 import os
+import strings
+
 
 // test_structure_building_1 - build a Command structure plus setting the "help" function.
 fn test_structure_building_1() {
@@ -418,10 +420,10 @@ fn test_adding_flags() {
 	assert result == i8(status_ok)
 
 	// * test on reading the file provided through "--file" flag
-	// * mimic a real world use case on how to retrieve flag value(s)
+	// ** mimic a real world use case on how to retrieve flag value(s)
 	cmd.set_arguments([ "-C", "a sample file with some LOREM IPSUM", "--file", "./testdata/sample.txt" ])
 	cmd.set_flag(false, "", "C", flag_type_string, "", true)
-	result = cmd.run(fn (c &Command, args []string) ?i8 {
+	result = cmd.run(fn (mut c &Command, args []string) ?i8 {
 		// retrieve the flag values
 		// catch the error and re-throw in a better formatted way.
 		file := c.get_string_flag_value(true, "file", "") or {
@@ -435,7 +437,9 @@ fn test_adding_flags() {
 		idx := content.index(contains) or {
 			return error("[run] the target file [$file] contents do NOT contain the following [$contains].")
 		}
-		println("[run] contents read -> $content\n")
+		c.write_to_output("#!# [run] contents read -> $content".bytes()) or {
+			panic("unexpected error on writing to an output stream, reason: $err")
+		}
 
 		if idx != -1 {
 			return i8(status_ok)
@@ -446,6 +450,12 @@ fn test_adding_flags() {
 		i8(status_fail)
 	}
 	assert result == i8(status_ok)
+	
+	// * test on reading the stream associated with the command
+	mut b_content := cmd.read_all_from_stream()
+	assert b_content.len > 0
+	println("\n#!#! ${string(b_content)}")
+	println("\n#!#! ${b_content} - done")
 }
 
 // test_remove_flag - test removing flags from local / forwardable Flag repositories.
@@ -637,3 +647,89 @@ fn test_array_of_any_bug() {
 	}
 	println("### final contents -> $list")
 }
+
+// Builder_bug_struct - a struct to test Builder behavior.
+pub struct Builder_bug_struct {
+mut:	
+	buffer strings.Builder
+pub mut:
+	age i8 = i8(10)	
+}
+
+// test_builder_behavior - test how the strings.Builder works...
+fn test_builder_behavior() {
+	println("\n### command_structures_test.test_builder_bug ###\n")
+
+	mut bb_struct := Builder_bug_struct{}
+	bb_struct.buffer.write("hello WORLd~".bytes()) or {
+		panic("failed to write to the buffer, reason: $err")
+	}
+	assert bb_struct.buffer.str() == "hello WORLd~"
+}
+
+/*
+pub struct Command_fake {
+mut:	
+	// sub_commands - sub commands based on this CLI (which is the parent command in this case)
+	sub_commands []Command
+	// run_handler - a function to handle business logics for this CLI - the core function. Returns an integer status.
+	run_handler fn(cmd &Command, args []string) ?i8
+	// help_handler - a function to produce the customized help message. If provided, the default help message generation 
+	// would be replaced by this function.
+	help_handler fn(&Command) string = fn (c &Command) string {
+		// TODO: update this impl...
+		return "TBD - default implementation on help"
+	}
+	// example_handler - a function to provide the example in details. If provided, it would override the [description] field's value.
+	example_handler fn (&Command) string
+	// args - set the arguments for the CLI. This function is handy for debug purpose as well.
+	args []string
+	// local_flags - the Flag(s) available for the CLI. Locally scoped means only this CLI would accept these Flag(s) 
+	// and not pass to the sub-commands.
+	local_flags []Flag
+	// forwardable_flags - the Flag(s) that would be BOTH available for the CLI and its sub-commands.
+	forwardable_flags []Flag
+	// parsed_local_flags_map - a map containing the parsed flag(s) values. Key is a string which would be either the following:
+	// 1. flag name (e.g. --config) OR
+	// 2. short flag name (e.g. -c)
+	// the SIMPLE rule is if the targeted flag to be updated has a [flag] name set, use this value as the key 
+	// or else use the [short_flag] name as the key
+	parsed_local_flags_map 			map[string]Any = map[string]Any{}
+	parsed_forwardable_flags_map 	map[string]Any = map[string]Any{}
+
+// TODO: test on the stdout functionality... can write??? can be attached???
+// TODO: add an output method ... hence printing the output to stdout + returning that string content to the caller... (good for debug)
+	// stdout - the output stream for the CLI's output.
+	//stdout os.File = os.stdout()
+
+	// out_buffer - actual backing buffer for output. An auto flush is done after finished executing the [run] fn.
+	//out_buffer strings.Builder
+	buffer strings.Builder = strings.new_builder(1)
+
+pub mut:
+	// name - the command's name (e.g. csv)
+	name string
+	// usage - a short desciption on how to use the command (e.g. csv [arguments|options])
+	usage string
+	// short_description - a short description on how to use the command (any arbitrary string)
+	short_description string
+	// description - a detail description on how to use the command; 
+	// if [example] function is not null, use example() to replace the description.
+	description string
+	// version - the version of this CLI (e.g. "1.0.1 ga")
+	version string
+}
+
+fn test_command_fake() {
+	mut cmd := Command_fake{}
+	cmd.buffer.write("hello world".bytes()) or {
+		panic("error? $err")
+	}
+	assert cmd.buffer.str() == "hello world"
+	
+	age := strconv.atoi("8") or {
+		panic("failed to convert to 8, $err")
+	}
+	assert age == 8
+}
+*/
