@@ -101,8 +101,10 @@ pub fn (mut c Command) run(handler ...fn(mut cmd &Command, args []string) ?i8) ?
 	mut stream := c.stdout
 	// [BUG] ?? required a newline or `\0` to delimited the end of a string... c style null-delimited string.
 	mut s_content := c.out_buffer.to_string(false) + "\n"
-	stream.write(s_content.bytes()) or {
-		return error("[Command][run] error in writing output to stdout, reason: $err")
+	if s_content.len > 1 {
+		stream.write(s_content.bytes()) or {
+			return error("[Command][run] error in writing output to stdout, reason: $err")
+		}
 	}
 	return status
 }

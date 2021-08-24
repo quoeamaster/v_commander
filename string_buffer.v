@@ -18,6 +18,8 @@
 
 module main
 
+// Stringbuffer - a replicate copy of the strings.Builder due to a compilation BUG.
+// reference link -> https://github.com/vlang/v/blob/fe08e1c504a512a1d305508a506bb6c556d1059d/vlib/strings/builder.v
 pub type Stringbuffer = []byte
 
 pub fn new_string_buffer(initial_size int) Stringbuffer {
@@ -55,6 +57,7 @@ pub fn (mut b Stringbuffer) write_string(s string) {
 // Probably something also has a fn named as "str".
 // PS. the [trim] parameter is important, as it determines whether a "trim / reset" is taken on the buffer. 
 pub fn (mut b Stringbuffer) to_string(trim bool) string {
+	// `\0` delimited string.
 	b << byte(0)
 	bcopy := unsafe { &byte(memdup(b.data, b.len)) }
 	s := unsafe { bcopy.vstring_with_len(b.len - 1) }
@@ -62,6 +65,10 @@ pub fn (mut b Stringbuffer) to_string(trim bool) string {
 	if trim {
 		b.trim(0)
 	}
+	// remove the added trailing `\0`
+	b = b[0..b.len-1]
+	// [debug]
+	//println("*** $s")
 	return s
 }
 
