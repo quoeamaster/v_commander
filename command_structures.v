@@ -63,8 +63,6 @@ mut:
 	// or else use the [short_flag] name as the key
 	parsed_local_flags_map 			map[string]Any = map[string]Any{}
 	parsed_forwardable_flags_map 	map[string]Any = map[string]Any{}
-// TODO: test on the stdout functionality... can write??? can be attached???
-// TODO: add an output method ... hence printing the output to stdout + returning that string content to the caller... (good for debug)
 	// stdout - the output stream for the CLI's output.
 	stdout os.File = os.stdout()
 	// out_buffer - actual backing buffer for output. An auto flush is done after finished executing the [run] fn.
@@ -100,6 +98,9 @@ pub fn (mut c Command) run(handler ...fn(mut cmd &Command, args []string) ?i8) ?
 			return error("[Command][run] invalid handler, $handler")
 		}
 	}
+	// merge the forwardable flag(s)
+	c.merge_with_parent_forwardable_flags()
+	c.merge_with_parent_forwardable_flag_map()
 	// run the args parsing before trigger the handler
 	c.parse_arguments()?
 	// execute the run_handler
@@ -629,34 +630,14 @@ pub fn (mut c Command) write_to_output(content []byte) ?int {
 	return c.out_buffer.write(content)
 }
 
-// [future]
+// read_all_from_stream - read everything from the underlying output-stream.
 pub fn (mut c Command) read_all_from_stream() []byte {
-	// TODO: test + impl set_output() AND read_all_from_stream()
+	// [reference links]
 	// read by supplying a buffer -> https://modules.vlang.io/os.html#File.read
 	// append the content by -> https://modules.vlang.io/strings.html#Builder 
 	// actual write fn -> https://modules.vlang.io/strings.html#Builder.write 
 	// convert to string -> https://modules.vlang.io/strings.html#Builder.str
 	// convert from []byte to string -> string(b_content)
-	
-	/*
-	mut data := strings.new_builder(0)
-
-	mut buf := []byte{ len: 1024, cap: 1024 }
-	for {
-		num := c.stdout.read(mut buf) or {
-			return "ERROR in reading stream data, $err".bytes()
-		} 
-		if num == 0 || num == -1 {
-			// end of stream met...
-			break
-		} else {
-			data.write(buf[0..num]) or {
-				return "ERROR in appending stream data, $err".bytes()
-			}
-		}
-	}
-	return data.str().bytes()
-	*/
 
 	// [debug]
 	//println("#$#$#$#$ -> ${c.out_buffer.len} vs ${c.out_buffer.cap}")
@@ -703,6 +684,49 @@ pub fn (mut c Command) read_all_from_stream() []byte {
 	*/
 	return b_content
 }
+
+// merge_with_parent_forwardable_flag_map - return the merged forwardable_flag(s) map.
+fn (mut c Command) merge_with_parent_forwardable_flag_map() map[string]Any {
+	// non "empty" parent
+	if c.parent.name != empty_command.name {
+		// udpate the parsed flag map
+		m := c.parent.merge_with_parent_forwardable_flag_map()
+		// combine with the current forwarable_flags.
+		for k, v in m {
+			// only add missing key-value pair(s), would not override any existing values.
+			if !(k in c.parsed_forwardable_flags_map) {
+				c.parsed_forwardable_flags_map[k] = v
+			}
+		} // end - for (parent.forwardable_flags)
+	}
+	// no matter whether any parent or grandparent is available, would return the current cmd's parsed forwardable flag map.
+	return c.parsed_forwardable_flags_map
+}
+
+fn (mut c Command) merge_with_parent_forwardable_flags() []Flag {
+	// non "empty" parent
+	if c.parent.name != empty_command.name {
+		// return the merged parent, grandparent []Flag(s)
+		m := c.parent.merge_with_parent_forwardable_flags()
+		// combine with the current forwarable_flags.
+		for _, flag in m {
+			mut found := false
+			for _, flag_current in c.forwardable_flags {
+				if flag_current.flag == flag.flag || flag_current.short_flag == flag.short_flag {
+					found = true
+					break
+				}
+			}
+			// missing this forwardable flag from the parent(s).
+			if !found {
+				c.forwardable_flags << flag
+			}
+		} // end - for (flags within the parent []Flag)
+	}
+	// no matter whether any parent or grandparent is available, would return the current cmd's parsed forwardable flag array.
+	return c.forwardable_flags
+}
+
 
 // TODO: a way to forward the forwardable flags to the sub-commands ... e.g. calling a fn (parent_command.get_parsed_forwardable_flags)
 // -> check if "parent" reference is valid, if so, call the grand-parent-cmd.get_parsed_forwardable_flags();

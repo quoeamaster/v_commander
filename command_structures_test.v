@@ -464,6 +464,28 @@ fn test_adding_flags() {
 	assert b_content.len > 0
 	println("\n#!#! ${string(b_content)}")
 	println("\n#!#! ${b_content} - done")
+
+	// * test on providing some arguments which is not set as flag(s)
+	cmd = Command{
+		name: "parent6"
+	}
+	cmd.set_arguments(["--config", "/app/config/abc.txt", "-E", "name=john"])
+	cmd.set_flag(true, "config", "", flag_type_string, "", false)
+	// deliberately NOT set the "-E" shorted flag
+	result = cmd.run(fn (mut c &Command, args []string) ?i8 {
+		if args.len != 4 {
+			return error("expect 4 arguments, actual: $args.len")
+		}
+		return i8(status_ok)
+	}) or {
+		_ := err.msg.index("invalid flag:") or {
+			panic("unexpected error to check whether 'invalid flag:' exists in the error string, $err")
+			0
+		}
+		i8(status_fail)
+	}
+	// failed as an unknown flag -E is provided.
+	assert result == i8(status_fail)
 }
 
 // test_remove_flag - test removing flags from local / forwardable Flag repositories.
@@ -541,7 +563,190 @@ fn test_remove_flag() {
 	assert i81 == i8(100)
 }
 
+fn test_subcommands_forwardable_flags() {
+	println("\n### command_structures_test.test_subcommands_forwardable_flags ###\n")
 
+	mut parent := Command{
+		name: "parent"
+	}
+	mut child1 := Command{
+		name: "child1"
+	}
+	mut child2 := Command{
+		name: "child2"
+	}
+	// flags 
+	// parent would have 1 local flag (name) and 1 forwardable flag (help)
+	parent.set_flag(true, "name", "n", flag_type_string, "name of the user", false)
+	parent.set_flag(false, "help", "h", flag_type_bool, "show help message?", false)
+	// child1 has 1 local flag (age) and zero forwardable flag
+	child1.set_flag(true, "age", "", flag_type_i8, "age of the user", false)
+	// child2 has 0 local flag and 1 forwardable flag (country)
+	child2.set_flag(false, "country", "", flag_type_string, "country name where the user lives", false)
+
+	parent.add_command(mut child1)
+	parent.add_command(mut child2)
+
+	// * try to parse on child1 level
+	child1.set_arguments(["--age", "28"])
+	mut result := child1.run(fn (mut c &Command, args []string) ?i8 {
+		// child1 = 1 local flag (age) + 1 inherited fwd flag (help)
+		help := c.get_bool_flag_value(false, "help", "") or {
+			false
+		}
+		assert help == false
+		age := c.get_i8_flag_value(true, "age", "") or {
+			i8(0)
+		}
+		assert age == i8(28)
+
+		return i8(status_ok)
+	}) or {
+		panic("unexpected parsing for child1, reason $err")
+		i8(status_fail)
+	}
+	// * parse child1 again with a fwd flag set
+	child1.set_arguments(["--age", "28", "--help"])
+	result = child1.run(fn (mut c &Command, args []string) ?i8 {
+		// child1 = 1 local flag (age) + 1 inherited fwd flag (help)
+		help := c.get_bool_flag_value(false, "help", "") or {
+			false
+		}
+		assert help == true
+		age := c.get_i8_flag_value(true, "age", "") or {
+			i8(0)
+		}
+		assert age == i8(28)
+
+		return i8(status_ok)
+	}) or {
+		panic("unexpected parsing for child1, reason $err")
+		i8(status_fail)
+	}
+	// should have inherited a new persistent flag...
+	assert child1.forwardable_flags.len == 1
+	assert child1.local_flags.len == 1
+
+
+	// * test with country argument not provided
+	child2.set_arguments(["--help", "false"])
+	result = child2.run(fn (mut c &Command, args []string) ?i8 {
+		// child1 = 1 local flag (age) + 1 inherited fwd flag (help)
+		help := c.get_bool_flag_value(false, "help", "") or {
+			true
+		}
+		assert help == false
+		ctry := c.get_string_flag_value(false, "country", "") or {
+			"unknown"
+		}
+		assert ctry == "unknown"
+		
+		return i8(status_ok)
+	}) or {
+		panic("unexpected parsing for child2, reason $err")
+		i8(status_fail)
+	}
+	// [debug]
+	//println("##### child2 fwd -> ${child2.forwardable_flags}, ${child2.parsed_forwardable_flags_map}")
+
+	// * test on child2 on inheritance of fwd flags from its parent
+	child2.set_arguments(["--help", "--country", "Singapore"])
+	result = child2.run(fn (mut c &Command, args []string) ?i8 {
+		// child1 = 1 local flag (age) + 1 inherited fwd flag (help)
+		help := c.get_bool_flag_value(false, "help", "") or {
+			false
+		}
+		assert help == true
+		mut ctry := c.get_string_flag_value(false, "country", "") or {
+			""
+		}
+		assert ctry == "Singapore"
+		// trying to get country in local flag would create an error
+		ctry = c.get_string_flag_value(true, "country", "") or {
+			err.msg.index('local flag either not-found') or {
+				panic("expect to contain 'local flag either not-found', actual $err")
+			}
+			""
+		}
+		assert ctry == ""
+
+		return i8(status_ok)
+	}) or {
+		panic("unexpected parsing for child2, reason $err")
+		i8(status_fail)
+	}
+	assert child2.forwardable_flags.len == 2
+	assert child2.local_flags.len == 0
+
+	// child3 having the same / duplicated fwd flag "help" -> would have no effect on the merge
+	mut child3 := Command{
+		name: "child3"
+	}
+	parent.add_command(mut child3)
+	child3.set_flag(false, "help", "H", flag_type_bool, "", false)
+	child3.set_arguments(["-H", "false"])
+	result = child3.run(fn (mut c &Command, args []string) ?i8 {
+		help := c.get_bool_flag_value(false, "help", "H") or {
+			true
+		}
+		assert help == false
+
+		return i8(status_ok)
+	}) or {
+		panic("unexpected error, reason : $err")
+		i8(status_fail)
+	}
+	assert result == i8(status_ok)
+	assert child3.forwardable_flags.len == 1
+	// [debug]
+	//println("#!# child3.fwd -> ${child3.forwardable_flags}, ${child3.parsed_forwardable_flags_map}")
+
+	// child4 having the same / duplicated fwd flag "help" (but i8 type) -> would have no effect on the merge (no merge and should still be i8)
+	mut child4 := Command{
+		name: "child4"
+	}
+	parent.add_command(mut child4)
+	child4.set_flag(false, "help", "", flag_type_i8, "", false)
+	child4.set_arguments(["--help", "128"])
+	result = child4.run(fn (mut c &Command, args []string) ?i8 {
+		help := c.get_i8_flag_value(false, "help", "") or {
+			i8(0)
+		}
+		assert help == i8(128)
+
+		return i8(status_ok)
+	}) or {
+		panic("unexpected error, reason : $err")
+		i8(status_fail)
+	}
+	assert result == i8(status_ok)
+	assert child4.forwardable_flags.len == 1
+	// [debug]
+	//println("#!# child4.fwd -> ${child4.forwardable_flags}, ${child4.parsed_forwardable_flags_map}")
+
+	// * test on parent level....
+	parent.set_arguments(["--name", "peter", "-h"])
+	result = parent.run(fn (mut c &Command, args []string) ?i8 {
+		name := c.get_string_flag_value(true, "name", "") or {
+			"unknown"
+		}
+		assert name == "peter"
+
+		help := c.get_bool_flag_value(false, "help", "h") or {
+			false
+		}
+		assert help == true
+
+		return i8(status_ok)
+	}) or {
+		panic("unexpected error, reason: $err")
+		i8(status_fail)
+	}
+	assert result == i8(status_ok)
+	assert parent.sub_commands.len == 4
+	assert parent.forwardable_flags.len == 1
+	assert parent.local_flags.len == 1
+}
 
 
 
