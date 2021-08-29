@@ -63,14 +63,22 @@ fn test_add_subcommands() {
 	mut parent := Command{
 		name: "parent"
 	}
-	child1 := Command{
+	mut child1 := Command{
 		name: "child_1"
 	}
-	child2 := Command{
+	mut child2 := Command{
 		name: "child_2"
 	}
-	parent.add_commands(child1, child2)
+	parent.add_command(mut child1)
+	parent.add_command(mut child2)
 	assert parent.sub_commands.len == 2
+
+	// is it the same parent??
+	assert child1.name == "child_1"
+	assert child1.parent.name == "parent"
+
+	assert child2.name == "child_2"
+	assert child2.parent.name == parent.name
 }
 
 // test_run_handler - test on running the [run] function.

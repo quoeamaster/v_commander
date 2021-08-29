@@ -24,9 +24,19 @@ import strconv
 // Any - is a sum-type of acceptable values within the CLI.
 type Any = i8|int|string|bool|f32| map[string]string | map[string]Any
 
+// empty_command - a reference of an empty [Command].
+const empty_command = Command{
+	parent: &Command{},
+	name: "__empty__"
+}
+
 // Command - a structure describing a CLI command.
+[heap]
 pub struct Command {
-mut:	
+mut:
+	// parent - the parent Command. Could be a reference of the [empty_command] instance.
+	//parent &Command = 0 // empty pointer (0)
+	parent &Command = &empty_command
 	// sub_commands - sub commands based on this CLI (which is the parent command in this case)
 	sub_commands []Command
 	// run_handler - a function to handle business logics for this CLI - the core function. Returns an integer status.
@@ -74,11 +84,10 @@ pub mut:
 	version string
 }
 
-// add_commands - add the provided sub-command(s), if any.
-pub fn (mut c Command) add_commands(cmds ...Command) {
-	for cmd in cmds {
-		c.sub_commands << cmd
-	}
+// add_command - add the provided sub-command. Also updates the [parent] reference.
+pub fn (mut c Command) add_command(mut cmd Command) {
+	cmd.parent = &c
+	c.sub_commands << cmd
 }
 
 // run - set the provided [handler] to the CLI and execute it. [run] provides the core functionality for this CLI.
