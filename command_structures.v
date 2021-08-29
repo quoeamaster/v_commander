@@ -451,6 +451,7 @@ fn (c Command) build_flag_key(flag string, flag_short string) string {
 	return f_short
 }
 
+// TODO: add back missing logic check on whether the flag is REQUIRED or not....
 // get_string_flag_value - return the flag's string value if valid.
 pub fn (c Command) get_string_flag_value(is_local bool, flag string, flag_short string) ?string {
 	// get the flag name (rule, if flag is provided use it, else use the flag_short value)

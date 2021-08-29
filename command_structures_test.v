@@ -746,6 +746,55 @@ fn test_subcommands_forwardable_flags() {
 	assert parent.sub_commands.len == 4
 	assert parent.forwardable_flags.len == 1
 	assert parent.local_flags.len == 1
+
+	// grandfather level...
+	mut parent2 := Command{
+		name: "parent2"
+	}
+	mut child_2 := Command{
+		name: "2child"
+	}
+	mut grandchild1 := Command{
+		name: 'grand1'
+	}
+	// parent would have 1 local flag (name) and 1 forwardable flag (help)
+	parent2.set_flag(true, "name", "n", flag_type_string, "name of the user", false)
+	parent2.set_flag(false, "help", "h", flag_type_bool, "show help message?", false)
+	// child2 has 0 local flag and 1 forwardable flag (country)
+	child_2.set_flag(false, "country", "", flag_type_string, "country name where the user lives", false)
+	
+	parent2.add_command(mut child_2)
+	child_2.add_command(mut grandchild1)
+	// inherit "help" -> parent; "country" -> child2, PLUS 1 local "class"
+	grandchild1.set_flag(true, "class", "C", flag_type_string, "class name of the user", false)
+	grandchild1.set_arguments([ "--country", "Singapore", "--class", "2C" ])
+	result = grandchild1.run(fn (mut c &Command, args []string) ?i8 {
+		help := c.get_bool_flag_value(false, "help", "") or {
+			println("help flag not set -> $err")
+			true
+		}
+		// since fwd flag not set -> return the "error" value
+		assert help == true
+
+		country := c.get_string_flag_value(false, "country", "") or {
+			"unknown"
+		}
+		assert country == "Singapore"
+
+		class := c.get_string_flag_value(true, "class", "") or {
+			"unknown"
+		}
+		assert class == "2C"
+
+		return i8(status_ok)
+	}) or {
+		panic("unexpected error, reason: $err")
+		i8(status_fail)
+	}
+	assert grandchild1.forwardable_flags.len == 2
+	assert grandchild1.local_flags.len == 1
+	// [debug]
+	println("#!#! grandchil1 : $grandchild1")
 }
 
 
