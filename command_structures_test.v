@@ -1021,6 +1021,49 @@ fn test_is_flag_set() {
 	// [duplicated] test parent fwd flag -> true, child fwd flag -> true / false
 }
 
+// test_sub_command_exec - test 
+fn test_sub_command_exec() {
+	println("\n### command_structures_test.test_sub_command_exec ###\n")
+
+	mut cmd := Command{
+		name: "admin"
+	}
+	mut child := Command{
+		name: "register"
+	}
+
+	cmd.set_flag(true, "name", "N", flag_type_string, "", true)
+	child.set_flag(true, "class", "", flag_type_string, "", false)
+	cmd.add_command(mut child)
+
+	cmd.set_arguments([ "-N", "JoSh", "register" ])
+	mut result := cmd.run(fn (c &Command, args []string) ?i8 {
+		return i8(status_ok)
+	}) or {
+		panic("a. unexpected, $err")
+		i8(status_fail)
+	}
+	assert result == i8(status_ok)
+	assert cmd.sub_command_sequence.len == 1
+	// [debug]
+	println("##### sub cmd seq -> length: ${cmd.sub_command_sequence.len} ->  ${cmd.sub_command_sequence}")
+
+	// * test the arguments in another ordering
+
+	//cmd.set_arguments([ "-N", "JoSh", "--class", "6S", "register" ])
+	// TODO: how to handle.... sub-command level flag parsing...
+	// [design]
+	// 1. parse all possible flags and sub-commands (no validation yet)
+	// 2. if sub-commands available, need to parse the above flags into different levels of the sub-commands 
+	//    (the lowest level - grandchild etc) would have the highest preference on setting the flag values.
+	//    grandchild > child > parent (preference in setting flags)
+	// 3. once flags done setting; pass the execution to the correct command / sub-command -> execute its run_handler.
+
+	//cmd.set_arguments([ "register", "-N", "JoSh", "--class", "6S" ])
+	//cmd.set_arguments([ "-N", "JoSh", "register", "--class", "6S" ])
+
+
+}
 
 
 

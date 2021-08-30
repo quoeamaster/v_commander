@@ -39,6 +39,9 @@ mut:
 	parent &Command = &empty_command
 	// sub_commands - sub commands based on this CLI (which is the parent command in this case)
 	sub_commands []Command
+	// sub_command_sequence - the sequence in which a sequence of sub-command(s) are involved. 
+	// This sequence affects which sub-command would be triggred to run its run_handler.
+	sub_command_sequence []Command
 	// run_handler - a function to handle business logics for this CLI - the core function. Returns an integer status.
 	run_handler fn(cmd &Command, args []string) ?i8
 	// help_handler - a function to produce the customized help message. If provided, the default help message generation 
@@ -103,10 +106,18 @@ pub fn (mut c Command) run(handler ...fn(mut cmd &Command, args []string) ?i8) ?
 	c.merge_with_parent_forwardable_flag_map()
 	// run the args parsing before trigger the handler
 	c.parse_arguments()?
-	// execute the run_handler
-	status := c.run_handler(c, c.get_arguments()) or {
-		return error("[Command][run] error found, reason: $err")
+
+	mut status := i8(status_ok)
+	if c.sub_command_sequence.len == 0 {
+		// execute the run_handler
+		status = c.run_handler(c, c.get_arguments()) or {
+			return error("[Command][run] error found, reason: $err")
+		}
+	} else {
+		// TODO: pass execution right to the correct sub-command???
 	}
+
+	
 	// flush output to stdout
 	mut stream := c.stdout
 	// [BUG] ?? required a newline or `\0` to delimited the end of a string... c style null-delimited string.
@@ -182,8 +193,8 @@ fn (mut c Command) parse_arguments() ?bool {
 	if args_len == 0 {
 		return true
 	}
-	// sub_command - whether a sub-command is required to execute.
-	mut sub_command_sequence := []Command{}
+	// sub_command - whether a sub-command is required to execute. (reset)
+	c.sub_command_sequence = []Command{}
 	for {
 		arg := args[idx].str()
 		// is it a flag?
@@ -291,7 +302,7 @@ fn (mut c Command) parse_arguments() ?bool {
 			if sub_command.name == "" {
 				return error("[Command][parse_arguments] value '$arg' is not a VALID sub-command NOR a VALID flag.")
 			}
-			sub_command_sequence << sub_command
+			c.sub_command_sequence << sub_command
 		}
 		idx++
 		if idx >= args_len {
