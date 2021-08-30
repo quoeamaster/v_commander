@@ -285,33 +285,33 @@ fn test_adding_flags() {
 	}
 	assert cmd.args.len == 7
 	mut s := cmd.get_string_flag_value(true, "config", "") or {
-		panic("unexpected error in getting a valid flag, reason: $err")
+		panic("a. unexpected error in getting a valid flag, reason: $err")
 	}
 	assert s == "/app/config.json"
 	// supply both flag and flag_short name, since flag is non "", 
 	// will use that as key for search; hence flag_short wont' affect the result.
 	s = cmd.get_string_flag_value(true, "config", "non-exist-key-but-not-affected") or {
-		panic("unexpected error in getting a valid flag, reason: $err")
+		panic("b. unexpected error in getting a valid flag, reason: $err")
 	}
 	assert s == "/app/config.json"
 	// non existing key
 	s = cmd.get_string_flag_value(true, "unknown", "unknown") or {
-		idx := err.msg.index("flag either not-found or the data-type is not a 'string'") or {
-			panic("unexpected error in getting a valid flag, reason: $err")
+		idx := err.msg.index("invalid flag, this flag is not configured") or {
+			panic("c1. unexpected error in getting a valid flag, reason: $err")
 		}
 		if idx == -1 {
-			panic("unexpected error in getting a valid flag, reason: $err")
+			panic("c2. unexpected error in getting a valid flag, reason: $err")
 		}
 		""
 	}
 	assert s == ""
 	// non found in local parsed flags...
 	s = cmd.get_string_flag_value(false, "unknown", "unknown") or {
-		idx := err.msg.index("flag either not-found or the data-type is not a 'string'") or {
-			panic("unexpected error in getting a valid flag, reason: $err")
+		idx := err.msg.index("invalid flag, this flag is not configured") or {
+			panic("d1. unexpected error in getting a valid flag, reason: $err")
 		}
 		if idx == -1 {
-			panic("unexpected error in getting a valid flag, reason: $err")
+			panic("d2. unexpected error in getting a valid flag, reason: $err")
 		}
 		""
 	}
@@ -341,35 +341,35 @@ fn test_adding_flags() {
 	// flag level checks
 	// map-of-string
 	m3 := cmd.get_map_of_string_flag_value(true, "params", "p") or {
-		panic("unexpected map-string extraction, reason: $err")
+		panic("e. unexpected map-string extraction, reason: $err")
 	}
 	assert m3.len == 2
 	assert m3["factor"] == "NONE"
 	assert m3["stage"] == "a12"
 	// string
 	s3 := cmd.get_string_flag_value(true, "", "c") or {
-		panic("unexpected string extraction, reason: $err")
+		panic("f. unexpected string extraction, reason: $err")
 	}
 	assert s3 == "/app/config.json"
 	// int
 	int3 := cmd.get_int_flag_value(true, "age", "") or {
-		panic("unexpected int extraction, reason: $err")
+		panic("g. unexpected int extraction, reason: $err")
 	}
 	assert int3 == 23
 	// i8
 	i3 := cmd.get_i8_flag_value(true, "classification", "") or {
-		panic("unexpected i8 extraction, reason: $err")
+		panic("h. unexpected i8 extraction, reason: $err")
 	}
 	// somehow auto cast is possible between int and i8...
 	assert i3 == 4
 	// bool
 	bool3 := cmd.get_bool_flag_value(true, "", "G") or {
-		panic("unexpected bool extraction, reason: $err")
+		panic("i. unexpected bool extraction, reason: $err")
 	}
 	assert bool3 == false
 	// f32 / float
 	float32 := cmd.get_float_flag_value(true, "price", "") or {
-		panic("unexpected float extraction, reason: $err")
+		panic("j. unexpected float extraction, reason: $err")
 	}
 	// by default float is float64... need a cast in this case
 	assert float32 == f32(12.99)
@@ -384,10 +384,10 @@ fn test_adding_flags() {
 	// # should throw exception -> "[Command][parse_arguments] invalid flag --unknown."
 	cmd.parse_arguments() or {
 		idx := err.msg.index("invalid flag: -") or {
-			panic("expected error message to contain 'invalid flag:', actual: $err")
+			panic("k. expected error message to contain 'invalid flag:', actual: $err")
 		}
 		if idx == -1 {
-			panic("expected error message to contain 'invalid flag:', actual: $err")
+			panic("k. expected error message to contain 'invalid flag:', actual: $err")
 		}
 	}
 
@@ -401,7 +401,7 @@ fn test_adding_flags() {
 		assert c.args.len == 4
 		return i8(status_ok)
 	}) or {
-		panic("unexpected error on running a handler, reason: $err")
+		panic("l. unexpected error on running a handler, reason: $err")
 	}
 	// add a new flag and run again
 	cmd.set_flag(true, "file", "", flag_type_string, "", true)
@@ -563,6 +563,7 @@ fn test_remove_flag() {
 	assert i81 == i8(100)
 }
 
+// test_subcommands_forwardable_flags - test on grandparent, parent, child command's forwardable flags forwarding.
 fn test_subcommands_forwardable_flags() {
 	println("\n### command_structures_test.test_subcommands_forwardable_flags ###\n")
 
@@ -639,7 +640,8 @@ fn test_subcommands_forwardable_flags() {
 		ctry := c.get_string_flag_value(false, "country", "") or {
 			"unknown"
 		}
-		assert ctry == "unknown"
+		// string flags return "" as DEFAULT value when a non-required flag is not set.
+		assert ctry == ""
 		
 		return i8(status_ok)
 	}) or {
@@ -663,8 +665,8 @@ fn test_subcommands_forwardable_flags() {
 		assert ctry == "Singapore"
 		// trying to get country in local flag would create an error
 		ctry = c.get_string_flag_value(true, "country", "") or {
-			err.msg.index('local flag either not-found') or {
-				panic("expect to contain 'local flag either not-found', actual $err")
+			err.msg.index('this flag is not configured as a [local == true]') or {
+				panic("expect to contain 'this flag is not configured as a [local == true]', actual $err")
 			}
 			""
 		}
@@ -773,8 +775,8 @@ fn test_subcommands_forwardable_flags() {
 			println("help flag not set -> $err")
 			true
 		}
-		// since fwd flag not set -> return the "error" value
-		assert help == true
+		// since fwd flag not set -> return the DEFAULT value (SINCE this flag is non-REQUIRED)
+		assert help == false
 
 		country := c.get_string_flag_value(false, "country", "") or {
 			"unknown"
@@ -797,6 +799,227 @@ fn test_subcommands_forwardable_flags() {
 	println("#!#! grandchil1 : $grandchild1")
 }
 
+// test_is_flag_set - test on the validation of is_flag_set() and its corresponding get_xxx_value() behavior on non-set non-required flag(s).
+fn test_is_flag_set() {
+	println("\n### command_structures_test.test_is_flag_set ###\n")
+
+	mut cmd := Command{
+		name: 'parent'
+	}
+	cmd.set_flag(false, 'help', 'H', flag_type_bool, "", false)
+	cmd.set_flag(true, 'name', 'N', flag_type_string, "", false)
+	cmd.set_arguments([])
+	mut result := cmd.run(fn (c &Command, args []string) ?i8 {
+		name := c.get_string_flag_value(true, "name", "") or {
+			"unknown"
+		}
+		// default value for non-required and non-set field == ""
+		assert name == ""
+
+		return i8(status_ok)
+	}) or {
+		panic("unexpected error, $err")
+		i8(status_fail)
+	}
+	assert cmd.is_flag_set(true, "name", "N") == false
+	assert cmd.is_flag_set(false, "help", "H") == false
+
+	// * test on providing another args
+	cmd.set_arguments([ "-N", "PeTeR" ])
+	result = cmd.run(fn (c &Command, args []string) ?i8 {
+		name := c.get_string_flag_value(true, "name", "N") or {
+			"unknown"
+		} 
+		assert name == "PeTeR"
+
+		help := c.get_bool_flag_value(false, "help", "") or {
+			true
+		}
+		// assert on DEFAULT bool value instead... (false in this case)
+		assert help == false
+
+		return i8(status_ok)
+	}) or {
+		panic("unexpected error, $err")
+		i8(status_fail)
+	}
+	assert cmd.is_flag_set(true, "name", "N") == true
+	assert cmd.is_flag_set(false, "help", "H") == false
+
+	// * re-test on the flags set to required == true
+	cmd = Command{
+		name: 'parent2'
+	}
+	cmd.set_flag(true, "name", "N", flag_type_string, "", true)
+	cmd.set_flag(false, "help", "H", flag_type_bool, "", true)
+	cmd.set_arguments([])
+	result = cmd.run(fn (mut c &Command, args []string) ?i8 {
+		// both flags are required but not set... should create error
+		name := c.get_string_flag_value(true, "name", "") or {
+			_ = err.msg.index("local flag either not-found or the data-type is not a ") or {
+				panic("1. unexpected error, reason: $err")
+			}
+			"unknown"
+		}
+		assert name == "unknown"
+
+		help := c.get_bool_flag_value(false, "help", "") or {
+			_ = err.msg.index("forwardable flag either not-found or the data-type is not a ") or {
+				panic("1b. unexpected error, reason: $err")
+			}
+			true
+		}
+		// error value should be returned in this case
+		assert help == true
+
+		return i8(status_ok)
+	}) or {
+		panic("unexpected error, $err")
+		i8(status_fail)
+	}
+	assert result == i8(status_ok)
+	assert cmd.is_flag_set(true, "name", "N") == false
+	assert cmd.is_flag_set(false, "help", "H") == false
+
+	// * test with another set of args
+	cmd.set_arguments([ "--name", "JoHn", "-H" ])
+	result = cmd.run(fn (mut c &Command, args []string) ?i8 {
+		// both flags are required but not set... should create error
+		name := c.get_string_flag_value(true, "name", "") or {
+			_ = err.msg.index("local flag either not-found or the data-type is not a ") or {
+				panic("1. unexpected error, reason: $err")
+			}
+			"unknown"
+		}
+		assert name == "JoHn"
+
+		help := c.get_bool_flag_value(false, "help", "") or {
+			_ = err.msg.index("forwardable flag either not-found or the data-type is not a ") or {
+				panic("1b. unexpected error, reason: $err")
+			}
+			false
+		}
+		assert help == true
+
+		return i8(status_ok)
+	}) or {
+		panic("unexpected error, $err")
+		i8(status_fail)
+	}
+	assert result == i8(status_ok)
+	assert cmd.is_flag_set(true, "name", "N") == true
+	assert cmd.is_flag_set(false, "help", "H") == true
+
+	// * test parent, child level fwd flags
+	cmd = Command{
+		name: "parent3"
+	}
+	mut child := Command{
+		name: "child"
+	}
+	cmd.add_command(mut child)
+
+	cmd.set_flag(true, "name", "N", flag_type_string, "", true)
+	cmd.set_flag(false, "help", "H", flag_type_bool, "", false)
+	child.set_flag(true, "class", "", flag_type_string, "", true)
+	child.set_flag(false, "retention", "", flag_type_bool, "", false)
+	child.set_arguments([ "--retention", "-H" ])
+	result = child.run(fn (c &Command, args []string) ?i8 {
+		// missing required field class, yield error
+		class := c.get_string_flag_value(true, "class", "") or {
+			_ = err.msg.index('local flag either not-found or the data-type is not a') or {
+				panic('error, expect contains "flag either not-found or the data-type is not a" -> $err')
+				0
+			}
+			"unknown"
+		}
+		assert class == "unknown"
+
+		mut bv := c.get_bool_flag_value(false, "retention", "") or {
+			false
+		}
+		assert bv == true
+		bv = c.get_bool_flag_value(false, "help", "") or {
+			false
+		}
+		assert bv == true
+
+		return i8(status_ok)
+	}) or {
+		// a missing required flag...
+		_ = err.msg.index('a required local flag [class/] is missing') or {
+			panic("a. unexpected, $err")
+			0
+		}
+		i8(status_fail)
+	}
+	assert result == i8(status_fail)
+
+	// * test on another set of args
+	child.set_arguments([ "--retention", "-H", "--class", "7A" ])
+	result = child.run(fn (c &Command, args []string) ?i8 {
+		// missing required field class, yield error
+		class := c.get_string_flag_value(true, "class", "") or {
+			_ = err.msg.index('local flag either not-found or the data-type is not a') or {
+				panic('error, expect contains "flag either not-found or the data-type is not a" -> $err')
+				0
+			}
+			"unknown"
+		}
+		assert class == "7A"
+
+		mut bv := c.get_bool_flag_value(false, "retention", "") or {
+			false
+		}
+		assert bv == true
+		bv = c.get_bool_flag_value(false, "help", "") or {
+			false
+		}
+		assert bv == true
+
+		return i8(status_ok)
+	}) or {
+		panic("a2. unexpected, $err")
+		i8(status_fail)
+	}
+	assert result == i8(status_ok)
+	assert child.is_flag_set(false, "retention", "") == true
+	assert child.is_flag_set(false, "help", "") == true
+	assert child.is_flag_set(true, "class", "") == true
+
+	child.set_arguments([ "--retention", "false", "-H", "false", "--class", "7S" ])
+	result = child.run(fn (c &Command, args []string) ?i8 {
+		// missing required field class, yield error
+		class := c.get_string_flag_value(true, "class", "") or {
+			_ = err.msg.index('local flag either not-found or the data-type is not a') or {
+				panic('error, expect contains "flag either not-found or the data-type is not a" -> $err')
+				0
+			}
+			"unknown"
+		}
+		assert class == "7S"
+
+		mut bv := c.get_bool_flag_value(false, "retention", "") or {
+			true
+		}
+		assert bv == false
+		bv = c.get_bool_flag_value(false, "help", "") or {
+			true
+		}
+		assert bv == false
+
+		return i8(status_ok)
+	}) or {
+		panic("a2. unexpected, $err")
+		i8(status_fail)
+	}
+	assert result == i8(status_ok)
+	assert child.is_flag_set(false, "retention", "") == true
+	assert child.is_flag_set(false, "help", "") == true
+	assert child.is_flag_set(true, "class", "") == true
+
+	// [duplicated] test parent fwd flag -> true, child fwd flag -> true / false
+}
 
 
 
