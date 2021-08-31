@@ -280,7 +280,7 @@ fn test_adding_flags() {
 	cmd.set_flag(false, "", "E", flag_type_map_of_string, "", false)
 	cmd.set_arguments([ "--config", "/app/config.json", "-E", "age=28", "-E", "name=jennie", "--help" ])
 	// normal scenario -> parse_arguments() is a private fn and hence should ONLY be invoked within the [run] fn automatically.
-	cmd.parse_arguments() or {
+	cmd.parse_argument() or {
 		panic("unexpected error in parsing arguments, reason [$err]")
 	}
 	assert cmd.args.len == 7
@@ -382,7 +382,7 @@ fn test_adding_flags() {
 	cmd.set_flag(true, "help", "h", flag_type_bool, "help?", true)
 	cmd.set_flag(true, "", "c", flag_type_string, "config file", false)
 	// # should throw exception -> "[Command][parse_arguments] invalid flag --unknown."
-	cmd.parse_arguments() or {
+	cmd.parse_argument() or {
 		idx := err.msg.index("invalid flag: -") or {
 			panic("k. expected error message to contain 'invalid flag:', actual: $err")
 		}
@@ -500,7 +500,7 @@ fn test_remove_flag() {
 	cmd.set_flag(false, "", "a", flag_type_i8, "age value", true)
 	cmd.set_flag(false, "", "b", flag_type_i8, "best score", false)
 	cmd.set_arguments([ "--contains" "how are you TODAY?", "-a", "12", "-b", "100" ])
-	mut b_result := cmd.parse_arguments() or {
+	mut b_result := cmd.parse_argument() or {
 		panic("unexpected error in parsing arguments, reason: $err")
 	}
 	assert cmd.remove_flag(true, "contains", "C") == true
@@ -511,7 +511,7 @@ fn test_remove_flag() {
 	assert cmd.parsed_forwardable_flags_map.len == 1
 
 	// * test on after removing flags, the parse would fail due to invalid flag
-	b_result = cmd.parse_arguments() or {
+	b_result = cmd.parse_argument() or {
 		idx := err.msg.index("[Command][parse_arguments] invalid flag:") or {
 			panic("unexpected error in parsing arguments, reason: $err")
 		}
@@ -523,7 +523,7 @@ fn test_remove_flag() {
 	cmd.set_flag(true, "contains", "C", flag_type_string, "contains provided text", false)
 	cmd.set_flag(false, "", "a", flag_type_i8, "age value", true)
 	cmd.set_arguments([ "--contains" "how are you TODAY?", "-a", "12", "-b", "100" ])
-	b_result = cmd.parse_arguments() or {
+	b_result = cmd.parse_argument() or {
 		panic("unexpected error in parsing arguments, reason: $err")
 	}
 	assert b_result == true
@@ -553,7 +553,7 @@ fn test_remove_flag() {
 	assert cmd.parsed_forwardable_flags_map.len == 2
 
 	// * test on after removing non existing keys, should NOT have error
-	b_result = cmd.parse_arguments() or {
+	b_result = cmd.parse_argument() or {
 		panic("unexpected error in parsing arguments, reason: $err")
 	}
 	assert b_result == true
