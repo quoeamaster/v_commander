@@ -333,5 +333,185 @@ fn test_sub_commands_2 () {
 	assert target_command.is_flag_set(true, "gender", "") == true
 	assert target_command.is_flag_set(true, "name", "N") == true
 	assert target_command.is_flag_set(false, "help", "") == false
+
+	// * test on 3 level hierarchy...
+	// course (local: catalog:string-req, fwd: help:bool)
+	// |_ register (local: name:string-req, gender:string, inherited fwd: help:bool::course_parent_cmd)
+	//    |_ pay (local: method:i8-req, inherited fwd: help:bool::course_parent_cmd)
+	// |_ update (local: user:string, inherited fwd: help:bool::course_parent_cmd)
+	// |_ report (fwd: format:i8-req, inherited fwd: help:bool::course_parent_cmd)
+	//    |_ overall (inherited fwd: help:bool::course_parent_cmd format:i8-req::report_cmd)
+	//    |_ registration (local: class:string, inherited fwd: help:bool::course_parent_cmd format:i8-req::report_cmd)
+
+	// [bug]?? weird that ... could not work when trying to update the register_child_cmd... seems reference / pointer issue.
+	mut course_parent_cmd_1 := Command{ name: "course"}
+	mut register_child_cmd_1 := Command{ name: "register" }
+	// update flags
+	course_parent_cmd_1.set_flag(false, "help", "H", flag_type_bool, "show help?", false)
+	course_parent_cmd_1.set_flag(true, "catalog", "", flag_type_string, "show only catalog related data", true)
+	register_child_cmd_1.set_flag(true, "name", "N", flag_type_string, "name of the registrant", true)
+	register_child_cmd_1.set_flag(true, "gender", "", flag_type_string, "gender of the registrant", false)
+	course_parent_cmd_1.add_command(mut register_child_cmd_1)
+
+	mut pay_grandchild_cmd := Command{ name: "pay" }
+	pay_grandchild_cmd.set_flag(true, "method", "M", flag_type_i8, "payment method 0-cash, 1-creditcard", true)
+	register_child_cmd_1.add_command(mut pay_grandchild_cmd)
 	
+	mut update_child_cmd := Command{ name: "update" }
+	update_child_cmd.set_flag(true, "user", "U", flag_type_string, "username / userid for updates", false)
+	course_parent_cmd_1.add_command(mut update_child_cmd)
+
+	mut report_child_cmd := Command{ name: "report" }
+	report_child_cmd.set_flag(false, "format", "F", flag_type_i8, "report format 0-pdf, 1-json, 2-xml", true)
+	course_parent_cmd_1.add_command(mut report_child_cmd)
+
+	mut overall_grandchild_cmd := Command{ name: "overall" }
+	report_child_cmd.add_command(mut overall_grandchild_cmd)
+
+	mut registration_grandchild_cmd := Command{ name: "registration" }
+	registration_grandchild_cmd.set_flag(true, "class", "C", flag_type_string, "target class for registration reporting", false)
+	report_child_cmd.add_command(mut registration_grandchild_cmd)
+
+	// check on the command hierarchy
+	println("\n[debug] all sub-commands available -> \n ${course_parent_cmd_1.get_all_subcommand_names("course")}")
+
+	// args set A
+	course_parent_cmd_1.set_arguments([ "register", "pay", "--method", "0" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		panic("f1. unexpected, $err")
+	}
+	assert target_command.name == "pay"
+
+	course_parent_cmd_1.set_arguments([ "--method", "0", "register", "pay" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		panic("f2. unexpected, $err")
+	}
+	assert target_command.name == "pay"
+
+	// exception... as NOT able to find the command??? 
+	course_parent_cmd_1.set_arguments([ "--method", "0", "pay", "register" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		err.msg.index('the command sequence [ pay.register ] to be executed is not VALID') or {
+			panic("f3. unexpected, $err")
+		}
+		Command{}
+	}
+	assert target_command.name == ""
+
+	course_parent_cmd_1.set_arguments([ "register", "--method", "0", "pay" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		panic("f4. unexpected, $err")
+	}
+	assert target_command.name == "pay"
+	assert is_help_value_correct(&target_command, false, "help", false) == true
+
+	course_parent_cmd_1.set_arguments([ "register", "pay" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		err.msg.index("a required local flag [method/M] is missing") or {
+			panic("f4a. unexpected, $err")
+		}
+		Command{}
+	}
+	assert target_command.name == ""
+
+	course_parent_cmd_1.set_arguments([ "register", "--method", "pay" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		err.msg.index("flag [method/M] is non bool-typed, but the provided value for this flag is a bool valued [true]") or {
+			panic("f4b. unexpected, $err")
+		}
+		Command{}
+	}
+	assert target_command.name == ""
+
+	course_parent_cmd_1.set_arguments([ "register", "--method", "false", "pay" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		err.msg.index("flag [method/M] is non bool-typed, but the provided value for this flag is a bool valued [false]") or {
+			panic("f4c. unexpected, $err")
+		}
+		Command{}
+	}
+	assert target_command.name == ""
+
+	// course (local: catalog:string-req, fwd: help:bool)
+	// |_ register (local: name:string-req, gender:string, inherited fwd: help:bool::course_parent_cmd)
+	//    |_ pay (local: method:i8-req, inherited fwd: help:bool::course_parent_cmd)
+	// |_ update (local: user:string, inherited fwd: help:bool::course_parent_cmd)
+	// |_ report (fwd: format:i8-req, inherited fwd: help:bool::course_parent_cmd)
+	//    |_ overall (inherited fwd: help:bool::course_parent_cmd format:i8-req::report_cmd)
+	//    |_ registration (local: class:string, inherited fwd: help:bool::course_parent_cmd format:i8-req::report_cmd)
+
+	course_parent_cmd_1.set_arguments([ "register", "--method", "false" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		err.msg.index("a required local flag [name/N] is missing") or {
+			panic("f5a. unexpected, $err")
+		}
+		Command{}
+	}
+	assert target_command.name == ""
+
+	course_parent_cmd_1.set_arguments([ "register", "-N", "OliVer", "--method", "false" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		err.msg.index("unknown key --method") or {
+			panic("f5b. unexpected, $err")
+		}
+		Command{}
+	}
+	assert target_command.name == ""
+
+	course_parent_cmd_1.set_arguments([ "register", "-N", "OliVer", "--help" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		panic("f5c. unexpected, $err")
+	}
+	assert target_command.name == "register"
+	assert is_help_value_correct(&target_command, false, "help", true) == true
+
+	course_parent_cmd_1.set_arguments([ "register", "-N", "OliVer", "--help", "false" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		panic("f5c. unexpected, $err")
+	}
+	assert target_command.name == "register"
+	assert is_help_value_correct(&target_command, false, "help", false) == true
+
+	course_parent_cmd_1.set_arguments([ "update", "--user", "JoSH" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		panic("f5d.1. unexpected, $err")
+	}
+	assert target_command.name == "update"
+	assert is_help_value_correct(&target_command, false, "help", false) == true
+
+	course_parent_cmd_1.set_arguments([ "update", "--user", "JoSH", "--help", "false" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		panic("f5d.2. unexpected, $err")
+	}
+	assert target_command.name == "update"
+	assert is_help_value_correct(&target_command, false, "help", false) == true
+
+	// * report related
+
+	course_parent_cmd_1.set_arguments([ "report", "overall", "--format", "2", "--help" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		panic("f5e.1. unexpected, $err")
+	}
+	assert target_command.name == "overall"
+	assert is_help_value_correct(&target_command, false, "help", true) == true
+	assert is_i8_value_correct(&target_command, false, "format", i8(2)) == true
+
+}
+
+// is_help_value_correct - helper method to check whether the help flag's value is the same as [value].
+fn is_help_value_correct(cmd &Command, is_local bool, key string, value bool) bool {
+	v := cmd.get_bool_flag_value(is_local, key, "") or {
+		println("[is_help_value_correct] failed to get value... $err")
+		false
+	}
+	//println("[debug] extracted value -> $v vs $value, actual $cmd.parsed_forwardable_flags_map")
+	return v == value
+}
+
+fn is_i8_value_correct(cmd &Command, is_local bool, key string, value i8) bool {
+	v := cmd.get_i8_flag_value(is_local, key, key) or {
+		println("[is_i8_value_correct] $err")
+		i8(0)
+	}
+	return v == value
 }

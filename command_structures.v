@@ -277,7 +277,32 @@ fn (mut c Command) parse_arguments() ?Command {
 				return error("[Command][parse_arguments] failed to find the sub-command [${sub_cmd.name}]. Available commands -> ${c.sub_commands}.")
 			}
 		}*/
-		target_command = c.sub_command_sequence[c.sub_command_sequence.len-1]
+
+		// find the target_command based on the sequences (also if the sequence is incorrect i.e. sub-commmand not found... throw error)
+		target_command = c
+		for _, cmd_seq in c.sub_command_sequence {
+			mut found := false
+			for _, current_cmd in target_command.sub_commands {
+				// [debug]
+				//println("[debug] seqname: $cmd_seq.name vs subcmd name: $current_cmd.name")
+				if current_cmd.name == cmd_seq.name {
+					target_command = current_cmd
+					found = true
+					break
+				}
+			}
+			if !found {
+				mut seq_str := ""
+				for _, v in c.sub_command_sequence {
+					if seq_str.len > 0 {
+						seq_str += "."
+					}
+					seq_str += "$v.name"
+				}
+				return error("[Command][parse_arguments] the command sequence [ $seq_str ] to be executed is not VALID, please check the documentations on how to use the Command.")
+			}
+		}
+		//target_command = c.sub_command_sequence[c.sub_command_sequence.len-1]
 		// inherit all parent level fwd flag(s) first
 		target_command.merge_with_parent_forwardable_flags()
 	}
