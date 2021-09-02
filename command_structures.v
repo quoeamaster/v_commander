@@ -104,29 +104,35 @@ pub fn (mut c Command) run(handler ...fn(mut cmd &Command, args []string) ?i8) ?
 	// merge the forwardable flag(s)
 	c.merge_with_parent_forwardable_flags()
 	c.merge_with_parent_forwardable_flag_map()
+	
+	// [deprecated]
+	// c.parse_argument()?
 	// run the args parsing before trigger the handler
-	c.parse_argument()?
-	// TODO: replace this with the above one...
-	c.parse_arguments()?
-
+	mut target_command := c.parse_arguments() or {
+		return err
+	}
 	mut status := i8(status_ok)
-	if c.sub_command_sequence.len == 0 {
-		// execute the run_handler
-		status = c.run_handler(c, c.get_arguments()) or {
-			return error("[Command][run] error found, reason: $err")
-		}
-	} else {
-		// TODO: pass execution right to the correct sub-command???
+	// execute the run_handler
+	status = target_command.run_handler(&target_command, c.get_arguments()) or {
+		return error("[Command][run] error found, reason: $err")
 	}
 
-	
+	// target_command will take over all the rest of the operation.
 	// flush output to stdout
-	mut stream := c.stdout
+	mut stream := target_command.stdout
 	// [BUG] ?? required a newline or `\0` to delimited the end of a string... c style null-delimited string.
-	mut s_content := c.out_buffer.to_string(false) + "\n"
+	mut s_content := target_command.out_buffer.to_string(false) + "\n"
 	if s_content.len > 1 {
 		stream.write(s_content.bytes()) or {
 			return error("[Command][run] error in writing output to stdout, reason: $err")
+		}
+	}
+
+	// [bug]?? to make sure the invoking Command has the same output content...
+	if target_command.out_buffer.len > 0 {
+		
+		c.out_buffer.write(target_command.out_buffer.to_string(false).bytes()) or {
+			return error("[Command][run] failed to sync the output buffer's content back to the Command, reason: ${err}.")
 		}
 	}
 	return status
@@ -492,6 +498,7 @@ fn (c Command) has_any_unknown_flags(parsed_flags_map map[string]Parsed_flag) ?b
 	return true
 }
 
+// [deprecated] replaced by parse_arguments fn instead.
 // parse_arguments - parse CLI arguments and associate them with the available flag(s).
 fn (mut c Command) parse_argument() ?bool {
 	args := c.get_arguments()
@@ -1131,13 +1138,13 @@ pub fn (c Command) get_map_of_string_flag_value(is_local bool, flag string, flag
 		s := c.parsed_local_flags_map[flag_name]
 		match s {
 			map[string]string { return s }
-			else { return error("[Command][get_map_of_string_flag_value] local flag either not-found or the data-type is not a 'float'.") }
+			else { return error("[Command][get_map_of_string_flag_value] local flag either not-found or the data-type is not a 'map of string'.") }
 		}
 	} else {
 		s := c.parsed_forwardable_flags_map[flag_name]
 		match s {
 			map[string]string { return s }
-			else { return error("[Command][get_map_of_string_flag_value] forwardable flag either not-found or the data-type is not a 'float'.") }
+			else { return error("[Command][get_map_of_string_flag_value] forwardable flag either not-found or the data-type is not a 'map of string'.") }
 		}
 	}
 }
@@ -1197,6 +1204,37 @@ pub fn (mut c Command) read_all_from_stream() []byte {
 
 	// [debug]
 	//println("#$#$#$#$ -> ${c.out_buffer.len} vs ${c.out_buffer.cap}")
+
+	// find the correct target_command and read its out_buffer instead
+	/* 
+	// [deprecated] since a sync of output buffer has been done within the run_handler automatically.
+	mut target_command := c
+	if c.sub_command_sequence.len > 0 {
+		for _, scmd in c.sub_command_sequence {
+			mut found := false
+			for _, current_scmd in target_command.sub_commands {
+				if current_scmd.name == scmd.name {
+					target_command = current_scmd
+					found = true
+					break
+				}
+			}
+			if !found {
+				mut seq_str := ""
+				for i, s in c.sub_command_sequence {
+					if i > 0 {
+						seq_str += "."
+					} 
+					seq_str += s.name
+				}
+				println("[Command][read_all_from_stream] failed to find the correct target command to read its output buffer, provided sequence [$seq_str].")
+				return []byte{}
+			}
+		}
+	}
+	println("[debug] target_command -> $target_command, $c")
+	*/
+
 	mut b_content := c.out_buffer.to_string(false).bytes()
 	// remove leading + trailing '\0'
 	// handling trailing '\0'

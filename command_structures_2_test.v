@@ -432,13 +432,6 @@ fn test_sub_commands_2 () {
 	}
 	assert target_command.name == ""
 
-	// course (local: catalog:string-req, fwd: help:bool)
-	// |_ register (local: name:string-req, gender:string, inherited fwd: help:bool::course_parent_cmd)
-	//    |_ pay (local: method:i8-req, inherited fwd: help:bool::course_parent_cmd)
-	// |_ update (local: user:string, inherited fwd: help:bool::course_parent_cmd)
-	// |_ report (fwd: format:i8-req, inherited fwd: help:bool::course_parent_cmd)
-	//    |_ overall (inherited fwd: help:bool::course_parent_cmd format:i8-req::report_cmd)
-	//    |_ registration (local: class:string, inherited fwd: help:bool::course_parent_cmd format:i8-req::report_cmd)
 
 	course_parent_cmd_1.set_arguments([ "register", "--method", "false" ])
 	target_command = course_parent_cmd_1.parse_arguments() or {
@@ -496,6 +489,61 @@ fn test_sub_commands_2 () {
 	assert is_help_value_correct(&target_command, false, "help", true) == true
 	assert is_i8_value_correct(&target_command, false, "format", i8(2)) == true
 
+	// missing fwd format flag
+	course_parent_cmd_1.set_arguments([ "report", "overall", "--help", "false" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		err.msg.index('a required forwardable flag [format/F] is missing') or {
+			panic("f5e.2. unexpected, $err")
+		}
+		Command{}
+	}
+	assert target_command.name == ""
+	
+	// course (local: catalog:string-req, fwd: help:bool)
+	// |_ register (local: name:string-req, gender:string, inherited fwd: help:bool::course_parent_cmd)
+	//    |_ pay (local: method:i8-req, inherited fwd: help:bool::course_parent_cmd)
+	// |_ update (local: user:string, inherited fwd: help:bool::course_parent_cmd)
+	// |_ report (fwd: format:i8-req, inherited fwd: help:bool::course_parent_cmd)
+	//    |_ overall (inherited fwd: help:bool::course_parent_cmd format:i8-req::report_cmd)
+	//    |_ registration (local: class:string, inherited fwd: help:bool::course_parent_cmd format:i8-req::report_cmd)
+
+	course_parent_cmd_1.set_arguments([ "report", "what", "--help", "false" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		err.msg.index('invalid value, [what] is not a valid sub-command NOR a valid flag') or {
+			panic("f5e.3. unexpected, $err")
+		}
+		Command{}
+	}
+	assert target_command.name == ""
+
+	course_parent_cmd_1.set_arguments([ "report", "registration", "--help", "false" "-F", "1", "--class", "7S" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		panic("f5e.4. unexpected, $err")
+	}
+	assert target_command.name == "registration"
+	assert is_help_value_correct(&target_command, false, "help", false) == true
+	assert is_help_value_correct(&target_command, false, "help", true) == false
+	assert is_i8_value_correct(&target_command, false, "format", i8(1)) == true
+	assert is_i8_value_correct(&target_command, false, "format", i8(10)) == false
+	assert is_string_value_correct(&target_command, true, "class", "7S") == true
+	assert is_string_value_correct(&target_command, true, "class", "7s") == false
+
+	course_parent_cmd_1.set_arguments([ "report", "registration", "-F", "0" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		panic("f5e.4. unexpected, $err")
+	}
+	assert target_command.name == "registration"
+	assert is_help_value_correct(&target_command, false, "help", false) == true
+	assert is_i8_value_correct(&target_command, false, "format", i8(0)) == true
+	assert is_string_value_correct(&target_command, true, "class", "") == true
+
+	course_parent_cmd_1.set_arguments([ "--catalog", "reg" ])
+	target_command = course_parent_cmd_1.parse_arguments() or {
+		panic("f5e.5. unexpected, $err")
+	}
+	assert target_command.name == "course"
+	assert is_help_value_correct(&target_command, false, "help", false) == true
+	assert is_string_value_correct(&target_command, true, "catalog", "reg") == true
 }
 
 // is_help_value_correct - helper method to check whether the help flag's value is the same as [value].
@@ -507,11 +555,17 @@ fn is_help_value_correct(cmd &Command, is_local bool, key string, value bool) bo
 	//println("[debug] extracted value -> $v vs $value, actual $cmd.parsed_forwardable_flags_map")
 	return v == value
 }
-
 fn is_i8_value_correct(cmd &Command, is_local bool, key string, value i8) bool {
 	v := cmd.get_i8_flag_value(is_local, key, key) or {
 		println("[is_i8_value_correct] $err")
 		i8(0)
+	}
+	return v == value
+}
+fn is_string_value_correct(cmd &Command, is_local bool, key string, value string) bool {
+	v := cmd.get_string_flag_value(is_local, key, key) or {
+		println("[is_string_value_correct] $err")
+		""
 	}
 	return v == value
 }

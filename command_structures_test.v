@@ -175,6 +175,40 @@ fn test_args_parsing_0() {
 
 	mut status := i8(main.status_fail)
 	status = cmd.run(fn (c &Command, args []string) ?i8 {
+		assert c.parsed_local_flags_map.len == 1
+		assert c.parsed_forwardable_flags_map.len == 1
+		assert ("E" in c.parsed_local_flags_map) == true
+		assert ("unknown" in c.parsed_local_flags_map) == false
+		assert c.name == "parent1"
+
+		v := c.parsed_local_flags_map["E"]
+		match v {
+			map[string]string {
+				assert ("a" in v) == true
+				assert ("unknown" in v) == false
+			}
+			else {}
+		}
+		v2 := c.parsed_forwardable_flags_map["h"]
+		match v2 {
+			bool {
+				assert v2 == true
+			}
+			else {}
+		}
+		// not available key...
+		v3 := c.parsed_local_flags_map["unknown"]
+		match v3 {
+			int {
+				println("### never happen...")
+			}
+			else {
+				assert "unknown sum type value" == "$v3"
+			}
+		}
+		// [debug]
+		//println("!!! all GOOD")
+
 		// length check...
 		if args.len == 3 {
 			return i8(main.status_ok)
@@ -185,36 +219,7 @@ fn test_args_parsing_0() {
 		i8(main.status_fail)
 	}
 	assert status == i8(main.status_ok)
-	assert cmd.parsed_local_flags_map.len == 1
-	assert cmd.parsed_forwardable_flags_map.len == 1
-	assert ("E" in cmd.parsed_local_flags_map) == true
-	assert ("unknown" in cmd.parsed_local_flags_map) == false
-	v := cmd.parsed_local_flags_map["E"]
-	match v {
-		map[string]string {
-			assert ("a" in v) == true
-			assert ("unknown" in v) == false
-		}
-		else {}
-	}
-	v2 := cmd.parsed_forwardable_flags_map["h"]
-	match v2 {
-		bool {
-			assert v2 == true
-		}
-		else {}
-	}
-	// not available key...
-	v3 := cmd.parsed_local_flags_map["unknown"]
-	match v3 {
-		int {
-			println("### never happen...")
-		}
-		else {
-			assert "unknown sum type value" == "$v3"
-		}
-	}
-
+	
 	// handling on parsing...
 	cmd = Command{
 		name: "parent2"
@@ -225,29 +230,43 @@ fn test_args_parsing_0() {
 	cmd.set_flag(false, "keyValue", "kv", flag_type_map_of_string, "", false)
 
 	cmd.run(fn (c &Command, args []string) ?i8 {
+		assert c.args.len == 7
+		assert c.parsed_local_flags_map.len == 2
+		assert c.parsed_forwardable_flags_map.len == 1
+		assert ("keyValue" in c.parsed_forwardable_flags_map) == true
+		assert ("kv" in c.parsed_forwardable_flags_map) == false
+
+		v4 := c.parsed_forwardable_flags_map["keyValue"]
+		match v4 {
+			map[string]string {
+				assert v4.len == 2
+				assert ("age" in v4) == true
+				assert ("name" in v4) == true
+				assert ("unknown" in v4) == false
+			
+				assert v4["age"] == "18"
+				assert v4["name"] == "peter"
+				assert v4["unknown"] == "" // default value for a map[string]string == ""
+				assert typeof(v4["age"]).name == "string"
+			}
+			else {}
+		}
+		// alternatively...
+		map_kv := c.get_map_of_string_flag_value(false, "keyValue", "kv") or {
+			panic("a. should have a kv map, reason: $err")
+		}
+		assert ("age" in map_kv) == true
+		assert ("name" in map_kv) == true
+		assert ("unknown" in map_kv) == false
+			
+		assert map_kv["age"] == "18"
+		assert map_kv["name"] == "peter"
+		assert map_kv["unknown"] == "" // default value for a map[string]string == ""
+		assert typeof(map_kv["age"]).name == "string"
+
 		return i8(status_ok)
 	}) or {
 		panic("$err")
-	}
-	assert cmd.args.len == 7
-	assert cmd.parsed_local_flags_map.len == 2
-	assert cmd.parsed_forwardable_flags_map.len == 1
-	assert ("keyValue" in cmd.parsed_forwardable_flags_map) == true
-	assert ("kv" in cmd.parsed_forwardable_flags_map) == false
-	v4 := cmd.parsed_forwardable_flags_map["keyValue"]
-	match v4 {
-		map[string]string {
-			assert v4.len == 2
-			assert ("age" in v4) == true
-			assert ("name" in v4) == true
-			assert ("unknown" in v4) == false
-			
-			assert v4["age"] == "18"
-			assert v4["name"] == "peter"
-			assert v4["unknown"] == "" // default value for a map[string]string == ""
-			assert typeof(v4["age"]).name == "string"
-		}
-		else {}
 	}
 }
 
@@ -269,33 +288,37 @@ fn test_adding_flags() {
 	cmd.set_flag(false, "debugFile", "d", flag_type_string, "debug file location", false)
 	assert cmd.forwardable_flags.len == 2
 	// [debug]
-	println("flags: local ->\n${cmd.local_flags}\nforwardable ->\n${cmd.forwardable_flags}")
+	//println("flags: local ->\n${cmd.local_flags}\nforwardable ->\n${cmd.forwardable_flags}")
 
 	// * test on -> parse the arguments~~
 	cmd = Command{
 		name: "parent2"
 	}
+	// cmd
+	// |_ --help (local:bool)
+	// |_ --config (local:string)
+	// |_ -E (fwd:kv)
 	cmd.set_flag(true, "help", "", flag_type_bool, "", false)
 	cmd.set_flag(true, "config", "", flag_type_string, "", false)
 	cmd.set_flag(false, "", "E", flag_type_map_of_string, "", false)
 	cmd.set_arguments([ "--config", "/app/config.json", "-E", "age=28", "-E", "name=jennie", "--help" ])
 	// normal scenario -> parse_arguments() is a private fn and hence should ONLY be invoked within the [run] fn automatically.
-	cmd.parse_argument() or {
-		panic("unexpected error in parsing arguments, reason [$err]")
+	mut target_command := cmd.parse_arguments() or {
+		panic("1. unexpected error in parsing arguments, reason [$err]")
 	}
-	assert cmd.args.len == 7
-	mut s := cmd.get_string_flag_value(true, "config", "") or {
+	assert target_command.args.len == 7
+	mut s := target_command.get_string_flag_value(true, "config", "") or {
 		panic("a. unexpected error in getting a valid flag, reason: $err")
 	}
 	assert s == "/app/config.json"
 	// supply both flag and flag_short name, since flag is non "", 
 	// will use that as key for search; hence flag_short wont' affect the result.
-	s = cmd.get_string_flag_value(true, "config", "non-exist-key-but-not-affected") or {
+	s = target_command.get_string_flag_value(true, "config", "non-exist-key-but-not-affected") or {
 		panic("b. unexpected error in getting a valid flag, reason: $err")
 	}
 	assert s == "/app/config.json"
 	// non existing key
-	s = cmd.get_string_flag_value(true, "unknown", "unknown") or {
+	s = target_command.get_string_flag_value(true, "unknown", "unknown") or {
 		idx := err.msg.index("invalid flag, this flag is not configured") or {
 			panic("c1. unexpected error in getting a valid flag, reason: $err")
 		}
@@ -306,7 +329,7 @@ fn test_adding_flags() {
 	}
 	assert s == ""
 	// non found in local parsed flags...
-	s = cmd.get_string_flag_value(false, "unknown", "unknown") or {
+	s = target_command.get_string_flag_value(false, "unknown", "unknown") or {
 		idx := err.msg.index("invalid flag, this flag is not configured") or {
 			panic("d1. unexpected error in getting a valid flag, reason: $err")
 		}
@@ -321,6 +344,13 @@ fn test_adding_flags() {
 	cmd = Command{
 		name: "parent3"
 	}
+	// cmd (parent3)
+	// |_ -c 					(local:string)
+	// |_ --age/-a 			(local:int)
+	// |_ --classification 	(local:i8)
+	// |_ -G 					(local:bool)
+	// |_ --price 				(local:float)
+	// |_ --params/-p 		(local:kv)
 	cmd.set_flag(true, "", "c", flag_type_string, "config file", false)
 	cmd.set_flag(true, "age", "a", flag_type_int, "age number in int", false)
 	cmd.set_flag(true, "classification", "", flag_type_i8, "classification number", false)
@@ -332,71 +362,76 @@ fn test_adding_flags() {
 	mut result := cmd.run(fn (c &Command, args []string) ?i8 {
 		// biz logic ... etc
 		assert c.args.len == 14
+		// flag level checks
+		// map-of-string
+		m3 := c.get_map_of_string_flag_value(true, "params", "p") or {
+			panic("e. unexpected map-string extraction, reason: $err")
+		}
+		assert m3.len == 2
+		assert m3["factor"] == "NONE"
+		assert m3["stage"] == "a12"
+		// string
+		s3 := c.get_string_flag_value(true, "", "c") or {
+			panic("f. unexpected string extraction, reason: $err")
+		}
+		assert s3 == "/app/config.json"
+		// int
+		int3 := c.get_int_flag_value(true, "age", "") or {
+			panic("g. unexpected int extraction, reason: $err")
+		}
+		assert int3 == 23
+		// i8
+		i3 := c.get_i8_flag_value(true, "classification", "") or {
+			panic("h. unexpected i8 extraction, reason: $err")
+		}
+		// somehow auto cast is possible between int and i8...
+		assert i3 == 4
+		// bool
+		bool3 := c.get_bool_flag_value(true, "", "G") or {
+			panic("i. unexpected bool extraction, reason: $err")
+		}
+		assert bool3 == false
+		// f32 / float
+		float32 := c.get_float_flag_value(true, "price", "") or {
+			panic("j. unexpected float extraction, reason: $err")
+		}
+		// by default float is float64... need a cast in this case
+		assert float32 == f32(12.99)
+
 		return i8(status_ok)
 	}) or {
 		panic("unexpected error, reason: $err")
 		i8(status_fail)
 	}
 	assert result == i8(status_ok)
-	// flag level checks
-	// map-of-string
-	m3 := cmd.get_map_of_string_flag_value(true, "params", "p") or {
-		panic("e. unexpected map-string extraction, reason: $err")
-	}
-	assert m3.len == 2
-	assert m3["factor"] == "NONE"
-	assert m3["stage"] == "a12"
-	// string
-	s3 := cmd.get_string_flag_value(true, "", "c") or {
-		panic("f. unexpected string extraction, reason: $err")
-	}
-	assert s3 == "/app/config.json"
-	// int
-	int3 := cmd.get_int_flag_value(true, "age", "") or {
-		panic("g. unexpected int extraction, reason: $err")
-	}
-	assert int3 == 23
-	// i8
-	i3 := cmd.get_i8_flag_value(true, "classification", "") or {
-		panic("h. unexpected i8 extraction, reason: $err")
-	}
-	// somehow auto cast is possible between int and i8...
-	assert i3 == 4
-	// bool
-	bool3 := cmd.get_bool_flag_value(true, "", "G") or {
-		panic("i. unexpected bool extraction, reason: $err")
-	}
-	assert bool3 == false
-	// f32 / float
-	float32 := cmd.get_float_flag_value(true, "price", "") or {
-		panic("j. unexpected float extraction, reason: $err")
-	}
-	// by default float is float64... need a cast in this case
-	assert float32 == f32(12.99)
-
+	
 	// * test on setting a non available flag cause error
 	cmd = Command{
 		name: "parent4"
 	}
-	cmd.set_arguments([ "-h", "--unknown", "999" ])
+	// cmd 
+	// |_ --help/-h 	(local:bool)
+	// |_ -c 			(local:string)
 	cmd.set_flag(true, "help", "h", flag_type_bool, "help?", true)
 	cmd.set_flag(true, "", "c", flag_type_string, "config file", false)
+	cmd.set_arguments([ "-h", "--unknown", "999" ])
 	// # should throw exception -> "[Command][parse_arguments] invalid flag --unknown."
-	cmd.parse_argument() or {
-		idx := err.msg.index("invalid flag: -") or {
-			panic("k. expected error message to contain 'invalid flag:', actual: $err")
+	target_command = cmd.parse_arguments() or {
+		err.msg.index('unknown key --unknown') or {
+			panic("k. expect parsing failure, contains 'unknown key --unknown', actual $err")
 		}
-		if idx == -1 {
-			panic("k. expected error message to contain 'invalid flag:', actual: $err")
-		}
+		Command{}
 	}
-
+	assert target_command.name == ""
+	
 	// * fail case on NOT setting a required flag through arguments...
+	// cmd
+	// |_ -E (local:kv)
 	cmd = Command{
 		name: "parent5"
 	}
-	cmd.set_arguments([ "-E", "age=12", "-E", "name=mary" ])
 	cmd.set_flag(true, "", "E", flag_type_map_of_string, "", false)
+	cmd.set_arguments([ "-E", "age=12", "-E", "name=mary" ])
 	cmd.run(fn (c &Command, args []string) ?i8 {
 		assert c.args.len == 4
 		return i8(status_ok)
@@ -404,6 +439,9 @@ fn test_adding_flags() {
 		panic("l. unexpected error on running a handler, reason: $err")
 	}
 	// add a new flag and run again
+	// cmd
+	// |_ -E 		(local:kv)
+	// |_ --file 	(local:string)
 	cmd.set_flag(true, "file", "", flag_type_string, "", true)
 	cmd.set_arguments([ "-E", "age=32" ])
 	result = cmd.run(fn (c &Command, args []string) ?i8 {
@@ -462,15 +500,21 @@ fn test_adding_flags() {
 	// * test on reading the stream associated with the command
 	mut b_content := cmd.read_all_from_stream()
 	assert b_content.len > 0
-	println("\n#!#! ${string(b_content)}")
-	println("\n#!#! ${b_content} - done")
+	idx := string(b_content).index("LOREM IPSUM content") or {
+		panic("a1. unexpected error on validating the content of the read buffer, $err")
+	}
+	// [debug]
+	//println("\n#!#! ${string(b_content)}")
+	//println("\n#!#! ${b_content} - done")
 
 	// * test on providing some arguments which is not set as flag(s)
 	cmd = Command{
 		name: "parent6"
 	}
-	cmd.set_arguments(["--config", "/app/config/abc.txt", "-E", "name=john"])
+	// cmd 
+	// |_ --config (local:string)
 	cmd.set_flag(true, "config", "", flag_type_string, "", false)
+	cmd.set_arguments(["--config", "/app/config/abc.txt", "-E", "name=john"])
 	// deliberately NOT set the "-E" shorted flag
 	result = cmd.run(fn (mut c &Command, args []string) ?i8 {
 		if args.len != 4 {
@@ -478,9 +522,8 @@ fn test_adding_flags() {
 		}
 		return i8(status_ok)
 	}) or {
-		_ := err.msg.index("invalid flag:") or {
-			panic("unexpected error to check whether 'invalid flag:' exists in the error string, $err")
-			0
+		err.msg.index("unknown key -E") or {
+			panic("unexpected error to check whether -E is an unknown key, reason: $err")
 		}
 		i8(status_fail)
 	}
@@ -796,7 +839,7 @@ fn test_subcommands_forwardable_flags() {
 	assert grandchild1.forwardable_flags.len == 2
 	assert grandchild1.local_flags.len == 1
 	// [debug]
-	println("#!#! grandchil1 : $grandchild1")
+	//println("#!#! grandchil1 : $grandchild1")
 }
 
 // test_is_flag_set - test on the validation of is_flag_set() and its corresponding get_xxx_value() behavior on non-set non-required flag(s).
@@ -806,6 +849,9 @@ fn test_is_flag_set() {
 	mut cmd := Command{
 		name: 'parent'
 	}
+	// cmd
+	// |_ --help/-H (fwd:bool)
+	// |_ --name/-N (local:string)
 	cmd.set_flag(false, 'help', 'H', flag_type_bool, "", false)
 	cmd.set_flag(true, 'name', 'N', flag_type_string, "", false)
 	cmd.set_arguments([])
@@ -821,10 +867,20 @@ fn test_is_flag_set() {
 		panic("unexpected error, $err")
 		i8(status_fail)
 	}
+	// [info] this might not work correctly if the execution is forwarded to a sub-command eventually; since some flags are only set within the sub-command level.
+	// typically this method works perfect and "well" ONLY within the run_handler fn.
 	assert cmd.is_flag_set(true, "name", "N") == false
 	assert cmd.is_flag_set(false, "help", "H") == false
 
 	// * test on providing another args
+	cmd = Command{
+		name: 'parent'
+	}
+	// cmd
+	// |_ --help/-H (fwd:bool)
+	// |_ --name/-N (local:string)
+	cmd.set_flag(false, 'help', 'H', flag_type_bool, "", false)
+	cmd.set_flag(true, 'name', 'N', flag_type_string, "", false)
 	cmd.set_arguments([ "-N", "PeTeR" ])
 	result = cmd.run(fn (c &Command, args []string) ?i8 {
 		name := c.get_string_flag_value(true, "name", "N") or {
@@ -838,13 +894,15 @@ fn test_is_flag_set() {
 		// assert on DEFAULT bool value instead... (false in this case)
 		assert help == false
 
+		//println("[debug] $c.parsed_local_flags_map")
+		assert c.is_flag_set(true, "name", "N") == true
+		assert c.is_flag_set(false, "help", "H") == false
+
 		return i8(status_ok)
 	}) or {
 		panic("unexpected error, $err")
 		i8(status_fail)
 	}
-	assert cmd.is_flag_set(true, "name", "N") == true
-	assert cmd.is_flag_set(false, "help", "H") == false
 
 	// * re-test on the flags set to required == true
 	cmd = Command{
@@ -901,15 +959,16 @@ fn test_is_flag_set() {
 		}
 		assert help == true
 
+		assert c.is_flag_set(true, "name", "N") == true
+		assert c.is_flag_set(false, "help", "H") == true
+
 		return i8(status_ok)
 	}) or {
 		panic("unexpected error, $err")
 		i8(status_fail)
 	}
 	assert result == i8(status_ok)
-	assert cmd.is_flag_set(true, "name", "N") == true
-	assert cmd.is_flag_set(false, "help", "H") == true
-
+	
 	// * test parent, child level fwd flags
 	cmd = Command{
 		name: "parent3"
@@ -977,15 +1036,17 @@ fn test_is_flag_set() {
 		}
 		assert bv == true
 
+		assert c.is_flag_set(false, "retention", "") == true
+		assert c.is_flag_set(false, "help", "") == true
+		assert c.is_flag_set(true, "class", "") == true
+
 		return i8(status_ok)
 	}) or {
 		panic("a2. unexpected, $err")
 		i8(status_fail)
 	}
 	assert result == i8(status_ok)
-	assert child.is_flag_set(false, "retention", "") == true
-	assert child.is_flag_set(false, "help", "") == true
-	assert child.is_flag_set(true, "class", "") == true
+	
 
 	child.set_arguments([ "--retention", "false", "-H", "false", "--class", "7S" ])
 	result = child.run(fn (c &Command, args []string) ?i8 {
@@ -1008,15 +1069,17 @@ fn test_is_flag_set() {
 		}
 		assert bv == false
 
+		assert c.is_flag_set(false, "retention", "") == true
+		assert c.is_flag_set(false, "help", "") == true
+		assert c.is_flag_set(true, "class", "") == true
+
 		return i8(status_ok)
 	}) or {
 		panic("a2. unexpected, $err")
 		i8(status_fail)
 	}
 	assert result == i8(status_ok)
-	assert child.is_flag_set(false, "retention", "") == true
-	assert child.is_flag_set(false, "help", "") == true
-	assert child.is_flag_set(true, "class", "") == true
+	
 
 	// [duplicated] test parent fwd flag -> true, child fwd flag -> true / false
 }
@@ -1032,6 +1095,10 @@ fn test_sub_command_exec() {
 		name: "register"
 	}
 
+	// cmd 
+	// |_ --name/-N (local:string-Req)
+	// child
+	// |_ --class (local:string)
 	cmd.set_flag(true, "name", "N", flag_type_string, "", true)
 	child.set_flag(true, "class", "", flag_type_string, "", false)
 	cmd.add_command(mut child)
@@ -1040,29 +1107,23 @@ fn test_sub_command_exec() {
 	mut result := cmd.run(fn (c &Command, args []string) ?i8 {
 		return i8(status_ok)
 	}) or {
-		panic("a. unexpected, $err")
+		err.msg.index('unknown key -N') or {
+			panic("a. unexpected, $err")
+		}
 		i8(status_fail)
 	}
-	assert result == i8(status_ok)
+	assert result == i8(status_fail)
 	assert cmd.sub_command_sequence.len == 1
 	// [debug]
-	println("##### sub cmd seq -> length: ${cmd.sub_command_sequence.len} ->  ${cmd.sub_command_sequence}")
+	//println("##### sub cmd seq -> length: ${cmd.sub_command_sequence.len} ->  ${cmd.sub_command_sequence}")
 
-	// * test the arguments in another ordering
+	// * test the arguments in another ordering // all these cases moved to command_structures_2_test.v
 
 	//cmd.set_arguments([ "-N", "JoSh", "--class", "6S", "register" ])
 	// TODO: how to handle.... sub-command level flag parsing...
-	// [design]
-	// 1. parse all possible flags and sub-commands (no validation yet)
-	// 2. if sub-commands available, need to parse the above flags into different levels of the sub-commands 
-	//    (the lowest level - grandchild etc) would have the highest preference on setting the flag values.
-	//    grandchild > child > parent (preference in setting flags)
-	// 3. once flags done setting; pass the execution to the correct command / sub-command -> execute its run_handler.
-
+	
 	//cmd.set_arguments([ "register", "-N", "JoSh", "--class", "6S" ])
 	//cmd.set_arguments([ "-N", "JoSh", "register", "--class", "6S" ])
-
-
 }
 
 
