@@ -18,7 +18,7 @@
 
 module main
 
-const (
+pub const (
 	// color_reset - the default / resetted color for the console output.
 	color_reset = "\033[0m"
 
@@ -65,9 +65,100 @@ const (
 	color_bold_hi_white	= "\033[1;97m"
 )
 
+// msg_in_color - create a message in a specific color, the [is_forever] parameter decides whether a color reset should be set.
+fn msg_in_color(msg string, color string, is_forever bool) string {
+	if is_forever {
+		return "${color}${msg}"
+	}
+	return "${color}${msg}${color_reset}"
+}
+
+// colored - a way to provide a chosen [color] for your [msg]. Please check the color constants.
+pub fn colored(msg string, color string, is_forever bool) string {
+	return msg_in_color(msg, color, is_forever)
+}
+
+// reset_color - return a message in the reset / default color.
+pub fn reset_color(msg string) string {
+	return msg_in_color(msg, color_reset, false)
+}
+
 // green - return a green string.
-fn green(msg string) string {
-	return "${color_green}${msg}${color_reset}"
+pub fn green(msg string) string {
+	return msg_in_color(msg, color_green, false)
+}
+// green_forever - return a green string.
+pub fn green_forever(msg string) string {
+	return msg_in_color(msg, color_green, true)
+}
+
+pub fn red(msg string) string {
+	return msg_in_color(msg, color_red, false)
+}
+pub fn red_forever(msg string) string {
+	return msg_in_color(msg, color_red, true)
+}
+
+pub fn yellow(msg string) string {
+	return msg_in_color(msg, color_yellow, false)
+}
+pub fn yellow_forever(msg string) string {
+	return msg_in_color(msg, color_yellow, true)
+}
+
+pub fn blue(msg string) string {
+	return msg_in_color(msg, color_blue, false)
+}
+pub fn blue_forever(msg string) string {
+	return msg_in_color(msg, color_blue, true)
+}
+
+pub fn purple(msg string) string {
+	return msg_in_color(msg, color_purple, false)
+}
+pub fn purple_forever(msg string) string {
+	return msg_in_color(msg, color_purple, true)
+}
+
+pub fn cyan(msg string) string {
+	return msg_in_color(msg, color_cyan, false)
+}
+pub fn cyan_forever(msg string) string {
+	return msg_in_color(msg, color_cyan, true)
+}
+
+pub fn white(msg string) string {
+	return msg_in_color(msg, color_white, false)
+}
+pub fn white_forever(msg string) string {
+	return msg_in_color(msg, color_white, true)
+}
+
+// chalk_gallery - display a demo on how each chalk looks like.
+pub fn chalk_gallery() string {
+	mut s := new_string_buffer(256)
+	//s.write_string("[green]\n")
+	s.write_string("${green('green'):-17} (normal) ${colored('green', color_hi_green, false):-17} (high color) ${colored('green', color_bold_green, false):-17} (bold) ${colored('green', color_bold_hi_green, false):-17} (bold and higher)")
+
+	s.write_string("\n")
+	s.write_string("${red('red'):-17} (normal) ${colored('red', color_hi_red, false):-17} (high color) ${colored('red', color_bold_red, false):-17} (bold) ${colored('red', color_bold_hi_red, false):-17} (bold and higher)")
+
+	s.write_string("\n")
+	s.write_string("${yellow('yellow'):-17} (normal) ${colored('yellow', color_hi_yellow, false):-17} (high color) ${colored('yellow', color_bold_yellow, false):-17} (bold) ${colored('yellow', color_bold_hi_yellow, false):-17} (bold and higher)")
+
+	s.write_string("\n")
+	s.write_string("${blue('blue'):-17} (normal) ${colored('blue', color_hi_blue, false):-17} (high color) ${colored('blue', color_bold_blue, false):-17} (bold) ${colored('blue', color_bold_hi_blue, false):-17} (bold and higher)")
+
+	s.write_string("\n")
+	s.write_string("${purple('purple'):-17} (normal) ${colored('purple', color_hi_purple, false):-17} (high color) ${colored('purple', color_bold_purple, false):-17} (bold) ${colored('purple', color_bold_hi_purple, false):-17} (bold and higher)")
+
+	s.write_string("\n")
+	s.write_string("${cyan('cyan'):-17} (normal) ${colored('cyan', color_hi_cyan, false):-17} (high color) ${colored('cyan', color_bold_cyan, false):-17} (bold) ${colored('cyan', color_bold_hi_cyan, false):-17} (bold and higher)")
+
+	s.write_string("\n")
+	s.write_string("${white('white'):-17} (normal) ${colored('white', color_hi_white, false):-17} (high color) ${colored('white', color_bold_white, false):-17} (bold) ${colored('white', color_bold_hi_white, false):-17} (bold and higher)\n")
+
+	return s.to_string(false)
 }
 
 // [design]

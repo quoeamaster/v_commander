@@ -76,5 +76,25 @@ fn test_chalk_green() {
 	println(green("another way to create a GREEN message~"))
 	println("should be reset to default color afterwards....")
 
+	println("\nstarted to green-forever contents")
+	println(green_forever("${'Samson':-10}: Morning Peter~"))
+	println("${'Peter':-10}: Hello Mr Samson, it is a GREEN day~")
+	println("${'Samson':-10}: Yeah, and I will reset the color right away~")
+	println(reset_color("${'Samson':-10}: see~ it worked"))
+
+	println("\ntest on hi-green and bold-green and hi-bold-green")
+	println(green("this is normal green"))
+	println(colored("this is hi-green", color_hi_green, false))
+	println(colored("this is bold-green", color_bold_green, false))
+	println(colored("this is hi-bold-green", color_bold_hi_green, false))
+	/*
+	println("pointer of fn green -> ${green:p}")
+	println("pointer of fn green -> ${green:p} again")
+	*/
+}
+
+fn test_chalk_gallery() {
+	println("\n### chalk_test.test_chalk_gallery ###\n")
+	println(chalk_gallery())
 }
 
