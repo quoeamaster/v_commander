@@ -16,6 +16,13 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// [design]
+// functionalities
+// - green -> create 1 green message (no \n); use it with println() for console output; color scheme reset automatically
+// - green_forever -> set the color scheme and create a green message, but do not RESET the color scheme; continues to be green until reset
+// - reset -> reset color scheme manually, useful when xxx_forever() has been called earlier
+// - gallery -> displays a gallery of possible colors to the stdout; kind of reference for the developer to choose.
+
 module main
 
 pub const (
@@ -161,11 +168,3 @@ pub fn chalk_gallery() string {
 	return s.to_string(false)
 }
 
-// [design]
-// functionalities
-// - green -> create 1 green message (no \n); use it with println() for console output; color scheme reset automatically
-// - green_forever -> set the color scheme and create a green message, but do not RESET the color scheme; continues to be green until reset
-// - green_strong -> strong version of green
-// - green_strong_forever -> strong version of green_forever
-// - reset -> reset color scheme manually, useful when xxx_forever() has been called earlier
-// - gallery -> displays a gallery of possible colors to the stdout; kind of reference for the developer to choose.

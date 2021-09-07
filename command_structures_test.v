@@ -22,7 +22,7 @@ import os
 import strings
 
 
-// test_structure_building_1 - build a Command structure plus setting the "help" function.
+// test_structure_building_1 - build a Command structure plus setting the "helps" function.
 fn test_structure_building_1() {
 	println("\n### command_structures_test.test_structure_building_1 ###\n")
 
@@ -39,14 +39,18 @@ fn test_structure_building_1() {
 
 	// default [help] message
 	mut msg := cmd.help()
-	// TODO: update the validation logic later...
-	assert msg == "TBD - default implementation on help"
+	// update the validation logic later...
+	msg.index("test_cmd is a demo purpose command which simply prints a 'hello world'.") or {
+		panic("expect help message involved -> test_cmd is a demo purpose command which simply prints a 'hello world'., actual: $msg") 
+	}
 
 	msg = cmd.help(fn (c &Command) string {
 		return "welcome to the help menu for command $c.name~"
 	})
 	assert msg == "welcome to the help menu for command test_cmd~"
 
+	// [deprecated]
+	/*
 	msg = cmd.example(fn (c &Command) string {
 		return "Example on how to use test_cmd:\nthis is the result~~\n\nNice~"
 	}) or {
@@ -54,6 +58,7 @@ fn test_structure_building_1() {
 		"caught exception, reason [${err}]"
 	}
 	assert msg == "Example on how to use test_cmd:\nthis is the result~~\n\nNice~"
+	*/
 }
 
 // test_add_subcommands - test on whether sub-commands could be appended.
@@ -133,7 +138,9 @@ fn test_run_handler() {
 	assert status == i8(main.status_ok)
 }
 
+// [deprecated] replaced by description field instead
 // test_example_handler - test on example_handler.
+/*
 fn test_example_handler() {
 	println("\n### command_structures_test.test_example_handler ###\n")
 
@@ -160,6 +167,7 @@ fn test_example_handler() {
 	}
 	assert msg == "cool example."
 }
+*/
 
 // test_args_parsing_0 - test on argument parsing.
 fn test_args_parsing_0() {
@@ -279,7 +287,7 @@ fn test_adding_flags() {
 		name: "parent"
 	}
 	// add some local flag(s)
-	cmd.set_flag(true, "help", "h", flag_type_bool, "whether help message should be displayed.", false)
+	cmd.set_flag(true, "helps", "h", flag_type_bool, "whether help message should be displayed.", false)
 	cmd.set_flag(true, "config", "c", flag_type_string, "config file location", true)
 	assert cmd.local_flags.len == 2
 
@@ -295,13 +303,13 @@ fn test_adding_flags() {
 		name: "parent2"
 	}
 	// cmd
-	// |_ --help (local:bool)
+	// |_ --helps (local:bool)
 	// |_ --config (local:string)
 	// |_ -E (fwd:kv)
-	cmd.set_flag(true, "help", "", flag_type_bool, "", false)
+	cmd.set_flag(true, "helps", "", flag_type_bool, "", false)
 	cmd.set_flag(true, "config", "", flag_type_string, "", false)
 	cmd.set_flag(false, "", "E", flag_type_map_of_string, "", false)
-	cmd.set_arguments([ "--config", "/app/config.json", "-E", "age=28", "-E", "name=jennie", "--help" ])
+	cmd.set_arguments([ "--config", "/app/config.json", "-E", "age=28", "-E", "name=jennie", "--helps" ])
 	// normal scenario -> parse_arguments() is a private fn and hence should ONLY be invoked within the [run] fn automatically.
 	mut target_command := cmd.parse_arguments() or {
 		panic("1. unexpected error in parsing arguments, reason [$err]")
@@ -410,9 +418,9 @@ fn test_adding_flags() {
 		name: "parent4"
 	}
 	// cmd 
-	// |_ --help/-h 	(local:bool)
+	// |_ --helps/-h 	(local:bool)
 	// |_ -c 			(local:string)
-	cmd.set_flag(true, "help", "h", flag_type_bool, "help?", true)
+	cmd.set_flag(true, "helps", "h", flag_type_bool, "help?", true)
 	cmd.set_flag(true, "", "c", flag_type_string, "config file", false)
 	cmd.set_arguments([ "-h", "--unknown", "999" ])
 	// # should throw exception -> "[Command][parse_arguments] invalid flag --unknown."
@@ -622,7 +630,7 @@ fn test_subcommands_forwardable_flags() {
 	// flags 
 	// parent would have 1 local flag (name) and 1 forwardable flag (help)
 	parent.set_flag(true, "name", "n", flag_type_string, "name of the user", false)
-	parent.set_flag(false, "help", "h", flag_type_bool, "show help message?", false)
+	parent.set_flag(false, "helps", "h", flag_type_bool, "show help message?", false)
 	// child1 has 1 local flag (age) and zero forwardable flag
 	child1.set_flag(true, "age", "", flag_type_i8, "age of the user", false)
 	// child2 has 0 local flag and 1 forwardable flag (country)
@@ -635,7 +643,7 @@ fn test_subcommands_forwardable_flags() {
 	child1.set_arguments(["--age", "28"])
 	mut result := child1.run(fn (mut c &Command, args []string) ?i8 {
 		// child1 = 1 local flag (age) + 1 inherited fwd flag (help)
-		help := c.get_bool_flag_value(false, "help", "") or {
+		help := c.get_bool_flag_value(false, "helps", "") or {
 			false
 		}
 		assert help == false
@@ -650,10 +658,10 @@ fn test_subcommands_forwardable_flags() {
 		i8(status_fail)
 	}
 	// * parse child1 again with a fwd flag set
-	child1.set_arguments(["--age", "28", "--help"])
+	child1.set_arguments(["--age", "28", "--helps"])
 	result = child1.run(fn (mut c &Command, args []string) ?i8 {
 		// child1 = 1 local flag (age) + 1 inherited fwd flag (help)
-		help := c.get_bool_flag_value(false, "help", "") or {
+		help := c.get_bool_flag_value(false, "helps", "") or {
 			false
 		}
 		assert help == true
@@ -668,15 +676,15 @@ fn test_subcommands_forwardable_flags() {
 		i8(status_fail)
 	}
 	// should have inherited a new persistent flag...
-	assert child1.forwardable_flags.len == 1
+	assert child1.forwardable_flags.len == 2
 	assert child1.local_flags.len == 1
 
 
 	// * test with country argument not provided
-	child2.set_arguments(["--help", "false"])
+	child2.set_arguments(["--helps", "false"])
 	result = child2.run(fn (mut c &Command, args []string) ?i8 {
 		// child1 = 1 local flag (age) + 1 inherited fwd flag (help)
-		help := c.get_bool_flag_value(false, "help", "") or {
+		help := c.get_bool_flag_value(false, "helps", "") or {
 			true
 		}
 		assert help == false
@@ -695,10 +703,10 @@ fn test_subcommands_forwardable_flags() {
 	//println("##### child2 fwd -> ${child2.forwardable_flags}, ${child2.parsed_forwardable_flags_map}")
 
 	// * test on child2 on inheritance of fwd flags from its parent
-	child2.set_arguments(["--help", "--country", "Singapore"])
+	child2.set_arguments(["--helps", "--country", "Singapore"])
 	result = child2.run(fn (mut c &Command, args []string) ?i8 {
 		// child1 = 1 local flag (age) + 1 inherited fwd flag (help)
-		help := c.get_bool_flag_value(false, "help", "") or {
+		help := c.get_bool_flag_value(false, "helps", "") or {
 			false
 		}
 		assert help == true
@@ -720,18 +728,18 @@ fn test_subcommands_forwardable_flags() {
 		panic("unexpected parsing for child2, reason $err")
 		i8(status_fail)
 	}
-	assert child2.forwardable_flags.len == 2
+	assert child2.forwardable_flags.len == 3
 	assert child2.local_flags.len == 0
 
-	// child3 having the same / duplicated fwd flag "help" -> would have no effect on the merge
+	// child3 having the same / duplicated fwd flag "helps" -> would have no effect on the merge
 	mut child3 := Command{
 		name: "child3"
 	}
 	parent.add_command(mut child3)
-	child3.set_flag(false, "help", "H", flag_type_bool, "", false)
-	child3.set_arguments(["-H", "false"])
+	child3.set_flag(false, "helps", "Z", flag_type_bool, "", false)
+	child3.set_arguments(["-Z", "false"])
 	result = child3.run(fn (mut c &Command, args []string) ?i8 {
-		help := c.get_bool_flag_value(false, "help", "H") or {
+		help := c.get_bool_flag_value(false, "helps", "Z") or {
 			true
 		}
 		assert help == false
@@ -742,19 +750,19 @@ fn test_subcommands_forwardable_flags() {
 		i8(status_fail)
 	}
 	assert result == i8(status_ok)
-	assert child3.forwardable_flags.len == 1
+	assert child3.forwardable_flags.len == 2
 	// [debug]
 	//println("#!# child3.fwd -> ${child3.forwardable_flags}, ${child3.parsed_forwardable_flags_map}")
 
-	// child4 having the same / duplicated fwd flag "help" (but i8 type) -> would have no effect on the merge (no merge and should still be i8)
+	// child4 having the same / duplicated fwd flag "helps" (but i8 type) -> would have no effect on the merge (no merge and should still be i8)
 	mut child4 := Command{
 		name: "child4"
 	}
 	parent.add_command(mut child4)
-	child4.set_flag(false, "help", "", flag_type_i8, "", false)
-	child4.set_arguments(["--help", "128"])
+	child4.set_flag(false, "helps", "", flag_type_i8, "", false)
+	child4.set_arguments(["--helps", "128"])
 	result = child4.run(fn (mut c &Command, args []string) ?i8 {
-		help := c.get_i8_flag_value(false, "help", "") or {
+		help := c.get_i8_flag_value(false, "helps", "") or {
 			i8(0)
 		}
 		assert help == i8(128)
@@ -765,7 +773,7 @@ fn test_subcommands_forwardable_flags() {
 		i8(status_fail)
 	}
 	assert result == i8(status_ok)
-	assert child4.forwardable_flags.len == 1
+	assert child4.forwardable_flags.len == 2
 	// [debug]
 	//println("#!# child4.fwd -> ${child4.forwardable_flags}, ${child4.parsed_forwardable_flags_map}")
 
@@ -777,7 +785,7 @@ fn test_subcommands_forwardable_flags() {
 		}
 		assert name == "peter"
 
-		help := c.get_bool_flag_value(false, "help", "h") or {
+		help := c.get_bool_flag_value(false, "helps", "h") or {
 			false
 		}
 		assert help == true
@@ -789,7 +797,7 @@ fn test_subcommands_forwardable_flags() {
 	}
 	assert result == i8(status_ok)
 	assert parent.sub_commands.len == 4
-	assert parent.forwardable_flags.len == 1
+	assert parent.forwardable_flags.len == 2
 	assert parent.local_flags.len == 1
 
 	// grandfather level...
@@ -804,17 +812,17 @@ fn test_subcommands_forwardable_flags() {
 	}
 	// parent would have 1 local flag (name) and 1 forwardable flag (help)
 	parent2.set_flag(true, "name", "n", flag_type_string, "name of the user", false)
-	parent2.set_flag(false, "help", "h", flag_type_bool, "show help message?", false)
+	parent2.set_flag(false, "helps", "h", flag_type_bool, "show help message?", false)
 	// child2 has 0 local flag and 1 forwardable flag (country)
 	child_2.set_flag(false, "country", "", flag_type_string, "country name where the user lives", false)
 	
 	parent2.add_command(mut child_2)
 	child_2.add_command(mut grandchild1)
-	// inherit "help" -> parent; "country" -> child2, PLUS 1 local "class"
+	// inherit "helps" -> parent; "country" -> child2, PLUS 1 local "class"
 	grandchild1.set_flag(true, "class", "C", flag_type_string, "class name of the user", false)
 	grandchild1.set_arguments([ "--country", "Singapore", "--class", "2C" ])
 	result = grandchild1.run(fn (mut c &Command, args []string) ?i8 {
-		help := c.get_bool_flag_value(false, "help", "") or {
+		help := c.get_bool_flag_value(false, "helps", "") or {
 			println("help flag not set -> $err")
 			true
 		}
@@ -836,7 +844,7 @@ fn test_subcommands_forwardable_flags() {
 		panic("unexpected error, reason: $err")
 		i8(status_fail)
 	}
-	assert grandchild1.forwardable_flags.len == 2
+	assert grandchild1.forwardable_flags.len == 3
 	assert grandchild1.local_flags.len == 1
 	// [debug]
 	//println("#!#! grandchil1 : $grandchild1")
@@ -850,9 +858,9 @@ fn test_is_flag_set() {
 		name: 'parent'
 	}
 	// cmd
-	// |_ --help/-H (fwd:bool)
+	// |_ --helps/-H (fwd:bool)
 	// |_ --name/-N (local:string)
-	cmd.set_flag(false, 'help', 'H', flag_type_bool, "", false)
+	cmd.set_flag(false, 'helps', 'Z', flag_type_bool, "", false)
 	cmd.set_flag(true, 'name', 'N', flag_type_string, "", false)
 	cmd.set_arguments([])
 	mut result := cmd.run(fn (c &Command, args []string) ?i8 {
@@ -870,16 +878,16 @@ fn test_is_flag_set() {
 	// [info] this might not work correctly if the execution is forwarded to a sub-command eventually; since some flags are only set within the sub-command level.
 	// typically this method works perfect and "well" ONLY within the run_handler fn.
 	assert cmd.is_flag_set(true, "name", "N") == false
-	assert cmd.is_flag_set(false, "help", "H") == false
+	assert cmd.is_flag_set(false, "helps", "Z") == false
 
 	// * test on providing another args
 	cmd = Command{
 		name: 'parent'
 	}
 	// cmd
-	// |_ --help/-H (fwd:bool)
+	// |_ --helps/-H (fwd:bool)
 	// |_ --name/-N (local:string)
-	cmd.set_flag(false, 'help', 'H', flag_type_bool, "", false)
+	cmd.set_flag(false, 'helps', 'Z', flag_type_bool, "", false)
 	cmd.set_flag(true, 'name', 'N', flag_type_string, "", false)
 	cmd.set_arguments([ "-N", "PeTeR" ])
 	result = cmd.run(fn (c &Command, args []string) ?i8 {
@@ -888,7 +896,7 @@ fn test_is_flag_set() {
 		} 
 		assert name == "PeTeR"
 
-		help := c.get_bool_flag_value(false, "help", "") or {
+		help := c.get_bool_flag_value(false, "helps", "") or {
 			true
 		}
 		// assert on DEFAULT bool value instead... (false in this case)
@@ -896,7 +904,7 @@ fn test_is_flag_set() {
 
 		//println("[debug] $c.parsed_local_flags_map")
 		assert c.is_flag_set(true, "name", "N") == true
-		assert c.is_flag_set(false, "help", "H") == false
+		assert c.is_flag_set(false, "helps", "Z") == false
 
 		return i8(status_ok)
 	}) or {
@@ -909,7 +917,7 @@ fn test_is_flag_set() {
 		name: 'parent2'
 	}
 	cmd.set_flag(true, "name", "N", flag_type_string, "", true)
-	cmd.set_flag(false, "help", "H", flag_type_bool, "", true)
+	cmd.set_flag(false, "helps", "Z", flag_type_bool, "", true)
 	cmd.set_arguments([])
 	result = cmd.run(fn (mut c &Command, args []string) ?i8 {
 		// both flags are required but not set... should create error
@@ -921,7 +929,7 @@ fn test_is_flag_set() {
 		}
 		assert name == "unknown"
 
-		help := c.get_bool_flag_value(false, "help", "") or {
+		help := c.get_bool_flag_value(false, "helps", "") or {
 			_ = err.msg.index("forwardable flag either not-found or the data-type is not a ") or {
 				panic("1b. unexpected error, reason: $err")
 			}
@@ -937,10 +945,10 @@ fn test_is_flag_set() {
 	}
 	assert result == i8(status_ok)
 	assert cmd.is_flag_set(true, "name", "N") == false
-	assert cmd.is_flag_set(false, "help", "H") == false
+	assert cmd.is_flag_set(false, "helps", "Z") == false
 
 	// * test with another set of args
-	cmd.set_arguments([ "--name", "JoHn", "-H" ])
+	cmd.set_arguments([ "--name", "JoHn", "-Z" ])
 	result = cmd.run(fn (mut c &Command, args []string) ?i8 {
 		// both flags are required but not set... should create error
 		name := c.get_string_flag_value(true, "name", "") or {
@@ -951,7 +959,7 @@ fn test_is_flag_set() {
 		}
 		assert name == "JoHn"
 
-		help := c.get_bool_flag_value(false, "help", "") or {
+		help := c.get_bool_flag_value(false, "helps", "") or {
 			_ = err.msg.index("forwardable flag either not-found or the data-type is not a ") or {
 				panic("1b. unexpected error, reason: $err")
 			}
@@ -960,7 +968,7 @@ fn test_is_flag_set() {
 		assert help == true
 
 		assert c.is_flag_set(true, "name", "N") == true
-		assert c.is_flag_set(false, "help", "H") == true
+		assert c.is_flag_set(false, "helps", "Z") == true
 
 		return i8(status_ok)
 	}) or {
@@ -979,10 +987,10 @@ fn test_is_flag_set() {
 	cmd.add_command(mut child)
 
 	cmd.set_flag(true, "name", "N", flag_type_string, "", true)
-	cmd.set_flag(false, "help", "H", flag_type_bool, "", false)
+	cmd.set_flag(false, "helps", "Z", flag_type_bool, "", false)
 	child.set_flag(true, "class", "", flag_type_string, "", true)
 	child.set_flag(false, "retention", "", flag_type_bool, "", false)
-	child.set_arguments([ "--retention", "-H" ])
+	child.set_arguments([ "--retention", "-Z" ])
 	result = child.run(fn (c &Command, args []string) ?i8 {
 		// missing required field class, yield error
 		class := c.get_string_flag_value(true, "class", "") or {
@@ -998,7 +1006,7 @@ fn test_is_flag_set() {
 			false
 		}
 		assert bv == true
-		bv = c.get_bool_flag_value(false, "help", "") or {
+		bv = c.get_bool_flag_value(false, "helps", "") or {
 			false
 		}
 		assert bv == true
@@ -1015,7 +1023,7 @@ fn test_is_flag_set() {
 	assert result == i8(status_fail)
 
 	// * test on another set of args
-	child.set_arguments([ "--retention", "-H", "--class", "7A" ])
+	child.set_arguments([ "--retention", "-Z", "--class", "7A" ])
 	result = child.run(fn (c &Command, args []string) ?i8 {
 		// missing required field class, yield error
 		class := c.get_string_flag_value(true, "class", "") or {
@@ -1031,13 +1039,13 @@ fn test_is_flag_set() {
 			false
 		}
 		assert bv == true
-		bv = c.get_bool_flag_value(false, "help", "") or {
+		bv = c.get_bool_flag_value(false, "helps", "") or {
 			false
 		}
 		assert bv == true
 
 		assert c.is_flag_set(false, "retention", "") == true
-		assert c.is_flag_set(false, "help", "") == true
+		assert c.is_flag_set(false, "helps", "") == true
 		assert c.is_flag_set(true, "class", "") == true
 
 		return i8(status_ok)
@@ -1048,7 +1056,7 @@ fn test_is_flag_set() {
 	assert result == i8(status_ok)
 	
 
-	child.set_arguments([ "--retention", "false", "-H", "false", "--class", "7S" ])
+	child.set_arguments([ "--retention", "false", "-Z", "false", "--class", "7S" ])
 	result = child.run(fn (c &Command, args []string) ?i8 {
 		// missing required field class, yield error
 		class := c.get_string_flag_value(true, "class", "") or {
@@ -1064,13 +1072,13 @@ fn test_is_flag_set() {
 			true
 		}
 		assert bv == false
-		bv = c.get_bool_flag_value(false, "help", "") or {
+		bv = c.get_bool_flag_value(false, "helps", "") or {
 			true
 		}
 		assert bv == false
 
 		assert c.is_flag_set(false, "retention", "") == true
-		assert c.is_flag_set(false, "help", "") == true
+		assert c.is_flag_set(false, "helps", "") == true
 		assert c.is_flag_set(true, "class", "") == true
 
 		return i8(status_ok)
@@ -1133,7 +1141,7 @@ fn test_sub_command_exec() {
 type AAny = int|string|map[string]string|map[string]AAny
 
 // test_map_of_any_bug - BUG~~~ map of SumType has error... could not be casted correctly during runtime...
-fn test_map_of_any_bug() {
+fn ignore_test_map_of_any_bug() {
 	println("\n### command_structures_test.test_map_of_any_bug ###\n")
 
 	// BUG~~~ map of SumType has error... could not be casted correctly during runtime...
@@ -1187,7 +1195,7 @@ fn test_map_of_any_bug() {
 }
 
 // test_array_of_any_bug - the BUG or ways to make it work... on Array(s)
-fn test_array_of_any_bug() {
+fn ignore_test_array_of_any_bug() {
 	println("\n### command_structures_test.test_array_of_any_bug ###\n")
 
 	mut list := []AAny{len: 3, cap: 3, init: AAny(0)}
@@ -1246,7 +1254,7 @@ pub mut:
 }
 
 // test_builder_behavior - test how the strings.Builder works...
-fn test_builder_behavior() {
+fn ignore_test_builder_behavior() {
 	println("\n### command_structures_test.test_builder_bug ###\n")
 
 	mut bb_struct := Builder_bug_struct{}
@@ -1256,69 +1264,4 @@ fn test_builder_behavior() {
 	assert bb_struct.buffer.str() == "hello WORLd~"
 }
 
-/*
-pub struct Command_fake {
-mut:	
-	// sub_commands - sub commands based on this CLI (which is the parent command in this case)
-	sub_commands []Command
-	// run_handler - a function to handle business logics for this CLI - the core function. Returns an integer status.
-	run_handler fn(cmd &Command, args []string) ?i8
-	// help_handler - a function to produce the customized help message. If provided, the default help message generation 
-	// would be replaced by this function.
-	help_handler fn(&Command) string = fn (c &Command) string {
-		// TODO: update this impl...
-		return "TBD - default implementation on help"
-	}
-	// example_handler - a function to provide the example in details. If provided, it would override the [description] field's value.
-	example_handler fn (&Command) string
-	// args - set the arguments for the CLI. This function is handy for debug purpose as well.
-	args []string
-	// local_flags - the Flag(s) available for the CLI. Locally scoped means only this CLI would accept these Flag(s) 
-	// and not pass to the sub-commands.
-	local_flags []Flag
-	// forwardable_flags - the Flag(s) that would be BOTH available for the CLI and its sub-commands.
-	forwardable_flags []Flag
-	// parsed_local_flags_map - a map containing the parsed flag(s) values. Key is a string which would be either the following:
-	// 1. flag name (e.g. --config) OR
-	// 2. short flag name (e.g. -c)
-	// the SIMPLE rule is if the targeted flag to be updated has a [flag] name set, use this value as the key 
-	// or else use the [short_flag] name as the key
-	parsed_local_flags_map 			map[string]Any = map[string]Any{}
-	parsed_forwardable_flags_map 	map[string]Any = map[string]Any{}
 
-// TODO: test on the stdout functionality... can write??? can be attached???
-// TODO: add an output method ... hence printing the output to stdout + returning that string content to the caller... (good for debug)
-	// stdout - the output stream for the CLI's output.
-	//stdout os.File = os.stdout()
-
-	// out_buffer - actual backing buffer for output. An auto flush is done after finished executing the [run] fn.
-	//out_buffer strings.Builder
-	buffer strings.Builder = strings.new_builder(1)
-
-pub mut:
-	// name - the command's name (e.g. csv)
-	name string
-	// usage - a short desciption on how to use the command (e.g. csv [arguments|options])
-	usage string
-	// short_description - a short description on how to use the command (any arbitrary string)
-	short_description string
-	// description - a detail description on how to use the command; 
-	// if [example] function is not null, use example() to replace the description.
-	description string
-	// version - the version of this CLI (e.g. "1.0.1 ga")
-	version string
-}
-
-fn test_command_fake() {
-	mut cmd := Command_fake{}
-	cmd.buffer.write("hello world".bytes()) or {
-		panic("error? $err")
-	}
-	assert cmd.buffer.str() == "hello world"
-	
-	age := strconv.atoi("8") or {
-		panic("failed to convert to 8, $err")
-	}
-	assert age == 8
-}
-*/

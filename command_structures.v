@@ -46,12 +46,7 @@ mut:
 	run_handler fn(cmd &Command, args []string) ?i8
 	// help_handler - a function to produce the customized help message. If provided, the default help message generation 
 	// would be replaced by this function.
-	help_handler fn(&Command) string = fn (c &Command) string {
-		// TODO: update this impl...
-		return "TBD - default implementation on help"
-	}
-	// example_handler - a function to provide the example in details. If provided, it would override the [description] field's value.
-	example_handler fn (&Command) string
+	help_handler fn(&Command) string = default_help_handler
 	// args - set the arguments for the CLI. This function is handy for debug purpose as well.
 	args []string
 	// local_flags - the Flag(s) available for the CLI. Locally scoped means only this CLI would accept these Flag(s) 
@@ -85,6 +80,102 @@ pub mut:
 	version string
 }
 
+// default_help_handler - default help generator.
+fn default_help_handler(mut c &Command) string {
+	mut s := new_string_buffer(128)
+	// TODO: change the return object to "reference" / pointer.
+	mut target_cmd := c.parse_arguments() or {
+		// error, assume the current command (c) would be a clue to how to use this CLI / Command
+		s.write_string("${red(err.msg)}\n")
+		(*c)
+	}
+	// short description
+	if target_cmd.short_description != "" {
+		s.write_string("${target_cmd.short_description}\n\n")
+	}
+	// example if any
+	mut v := target_cmd.description
+	if v != "" {
+		s.write_string("${v}\n\n")
+	}
+	// usage
+	s.write_string("Usage:\n")
+	mut cmd_hierarchy := target_cmd.name
+	mut c_cmd := target_cmd
+	for {
+		//println("[debug] current-name: ${c_cmd.name}, parent-name: ${c_cmd.parent.name}")
+		if c_cmd.parent.name != empty_command.name {
+			cmd_hierarchy = "${c_cmd.parent.name} ${cmd_hierarchy}"
+			c_cmd = c_cmd.parent
+		} else {
+			break
+		}
+	} // end - for
+	v = "   ${cmd_hierarchy}"
+	if target_cmd.sub_commands.len > 0 {
+		v = "${v} [command]"
+	}
+	if target_cmd.local_flags.len > 0 || target_cmd.forwardable_flags.len > 0 {
+		v = "${v} [flag]"
+	}
+	s.write_string("${v}\n\n")
+	// sub-commands
+	if target_cmd.sub_commands.len > 0 {
+		s.write_string("Available Commands:\n")
+		for x in target_cmd.sub_commands {
+			s.write_string("   ${x.name:-8}          ${x.short_description}\n")
+		} // end - for
+		s.write_string("\n")
+	}
+
+	// flags
+	if target_cmd.local_flags.len > 0 {
+		s.write_string("Flags:\n")
+		create_help_for_flags(target_cmd.local_flags, mut &s)
+		s.write_string("\n")
+	}
+	if target_cmd.forwardable_flags.len > 0 {
+		s.write_string("Forwardable Flags:\n")
+		create_help_for_flags(target_cmd.forwardable_flags, mut &s)
+	}
+	// sub-command help
+	if target_cmd.sub_commands.len > 0 {
+		s.write_string('\nUse "${cmd_hierarchy} [command] --help" for more information about a command.\n')
+	}
+	return s.to_string(false)
+} 
+
+// create_help_for_flags - helper method to build the flag's help documentation.
+fn create_help_for_flags(flags []Flag, mut s &Stringbuffer) {
+	for x in flags {
+		mut s_flag := x.short_flag
+		if s_flag != "" {
+			s_flag = "-"+s_flag+","
+		} else {
+			s_flag = " "
+		}
+		mut l_flag := x.flag
+		if l_flag != "" {
+			l_flag = "--"+l_flag
+		}
+		// convert type to string value
+		mut type_name := "[string]"
+		match x.flag_type {
+			flag_type_bool { type_name = "[bool]"}
+			flag_type_float { type_name = "[float]" }
+			flag_type_i8 { type_name = "[int 8bit]" }
+			flag_type_int { type_name = "[int]" }
+			flag_type_map_of_string { type_name = "[key=value]" }
+			else { "" }
+		}
+		mut flag_attr := "${type_name}"
+		if x.required {
+			flag_attr = "${flag_attr} REQUIRED"
+		}
+		s.write_string("   ${s_flag:-3} ${l_flag:-12} ${flag_attr:-20}    ${x.usage}\n")
+	} // end - for
+}
+
 // add_command - add the provided sub-command. Also updates the [parent] reference.
 pub fn (mut c Command) add_command(mut cmd Command) {
 	cmd.parent = &c
@@ -103,6 +194,8 @@ pub fn (mut c Command) run(handler ...fn(mut cmd &Command, args []string) ?i8) ?
 	}
 	// merge the forwardable flag(s)
 	c.merge_with_parent_forwardable_flags()
+	// add back the mandatory "--help|-H" flag
+	c.add_forwardable_help_flag()
 	c.merge_with_parent_forwardable_flag_map()
 	
 	// [deprecated]
@@ -111,6 +204,18 @@ pub fn (mut c Command) run(handler ...fn(mut cmd &Command, args []string) ?i8) ?
 	mut target_command := c.parse_arguments() or {
 		return err
 	}
+
+	// should we just run the help_handler instead of execution???
+	if target_command.is_flag_set(false, "help", "H") {
+		help_msg := target_command.help_handler(&target_command)
+		// so that the stream is still available for debug purpose
+		target_command.out_buffer.write_string(help_msg)
+			target_command.stdout.write(help_msg.bytes()) or {
+			return error("[Command][run] error in writing output to stdout, reason: $err")
+		}
+		return i8(status_ok)
+	}
+
 	mut status := i8(status_ok)
 	// execute the run_handler
 	status = target_command.run_handler(&target_command, c.get_arguments()) or {
@@ -130,12 +235,35 @@ pub fn (mut c Command) run(handler ...fn(mut cmd &Command, args []string) ?i8) ?
 
 	// [bug]?? to make sure the invoking Command has the same output content...
 	if target_command.out_buffer.len > 0 {
-		
 		c.out_buffer.write(target_command.out_buffer.to_string(false).bytes()) or {
 			return error("[Command][run] failed to sync the output buffer's content back to the Command, reason: ${err}.")
 		}
 	}
 	return status
+}
+
+// add_forwardable_help_flag - add the missing but mandatory "help" forwardable flag.
+fn (mut c Command) add_forwardable_help_flag() {
+	// add a "--help|-H" by default
+	fwd_help := Flag{
+		flag: "help",
+		short_flag: "H",
+		flag_type: flag_type_bool,
+		usage: "display the corresponding help message for a commamd.",
+		required: false,
+	}
+	// de-duplicate
+	mut found := false
+	for x in c.forwardable_flags {
+		// if 100% identical -> add back this clause '&& x.short_flag == fwd_help.short_flag'
+		if x.flag == fwd_help.flag  {
+			found = true
+			break
+		}
+	}
+	if !found {
+		c.forwardable_flags << fwd_help
+	}
 }
 
 fn (mut c Command) parse_arguments() ?Command {
@@ -635,26 +763,17 @@ fn (mut c Command) parse_argument() ?bool {
 
 // help - set the provided [handler] to the CLI and execute it. [help] facilitates a customized help message if necessary.
 pub fn (mut c Command) help(handler ...fn(cmd &Command) string) string {
+	// find the correct sub-command to show help
+	mut target_cmd := c.parse_arguments() or {
+		// TODO: integrate with the default help fn instead...
+		return "[Command][help] parse arguments failed, reason: ${err}."
+	}
+
 	if handler.len != 0 {
-		c.help_handler = handler[0]
+		target_cmd.help_handler = handler[0]
 	}
 	// execute
-	return c.help_handler(c)
-}
-
-// example - set the provided [handler] to the CLI and execute it. [example] provides a way to explain how the CLI works. 
-// If provided, it would replace the [description] field's value.
-pub fn (mut c Command) example(handler ...fn(cmd &Command) string) ?string {
-	// TODO: bug or whatever... so the current approach is all fn_pointers need a default implementation... example_handler would return empty string instead...
-	if handler.len != 0 {
-		// if &c.example_handler == 0 { <- only valid if the pointer has been set at least once...
-		c.example_handler = handler[0]
-	} else {
-		if isnil(c.example_handler) {
-			return error("[Command][example] invalid handler -> $handler")
-		}
-	}
-	return c.example_handler(c)
+	return target_cmd.help_handler(&target_cmd)
 }
 
 // set_arguments - set the [args] for this CLI.

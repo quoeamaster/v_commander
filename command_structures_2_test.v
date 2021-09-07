@@ -546,6 +546,220 @@ fn test_sub_commands_2 () {
 	assert is_string_value_correct(&target_command, true, "catalog", "reg") == true
 }
 
+fn create_commands_for_multi_run_handlers() &Command {
+	mut parent := Command{
+		name: "course_p",
+	}
+	mut child_1 := Command{
+		name: "list_c1"
+	}
+	mut child_2 := Command{
+		name: "add_c1"
+	}
+	mut grand_1 := Command{
+		name: "category_g1"
+	}
+	// relationship
+	parent.add_command(mut child_1)
+	parent.add_command(mut child_2)
+	child_1.add_command(mut grand_1)
+	// flags...
+	parent.set_flag(false, "documentation", "D", flag_type_bool, "documentation details", false)
+	child_1.set_flag(true, "info", "I", flag_type_bool, "additional information", false)
+	child_2.set_flag(true, "name", "N", flag_type_string, "course name", true)
+	grand_1.set_flag(true, "category", "C", flag_type_string, "target category name", true)
+	// set the run_handler
+	parent.run_handler = fn (c &Command, args []string) ?i8 {
+		println("*** parent -> course_p (run_handler) ***")
+		return i8(status_ok)
+	}
+	child_1.run_handler = fn (c &Command, args []string) ?i8 {
+		println("*** list_c1 (run_handler) ***")
+		return i8(status_ok)
+	}
+	child_2.run_handler = fn (c &Command, args []string) ?i8 {
+		println("*** add_c1 (run_handler) ***")
+		return i8(status_ok)
+	} 
+	grand_1.run_handler = fn (c &Command, args []string) ?i8 {
+		println("*** category_g1 (run_handler) ***")
+		return i8(status_ok)
+	}
+	return &parent
+}
+
+// test_sub_commands_3 - test sub command with all commands having a run handler...
+fn test_sub_commands_3() {
+	println("\n### command_structures_test.test_sub_commands_3 ###\n")
+	// parent			= course_p 		(documentation|D:bool)
+	// |_ child_1		= list_c1 		(info|I:bool)
+	//    |_ grand_1	= category_g1	(category|C:string-REQ)
+	// |_ child_2		= add_c1 		(name|N:string-REQ)
+	mut parent_cmd := create_commands_for_multi_run_handlers()
+	parent_cmd.set_arguments([ "-D" ])
+
+	// run on parent command
+	mut status := parent_cmd.run() or {
+		panic("a. running on parent... error, $err")
+	}
+	assert status == i8(status_ok)
+	
+	// run on child_2 level
+	parent_cmd = create_commands_for_multi_run_handlers()
+	parent_cmd.set_arguments([ "add_c1", "--name", "Armstrong Jr." ])
+	status = parent_cmd.run() or {
+		panic("b1. running on child_2 (add_c1)... error, $err")
+	}
+	assert status == i8(status_ok)
+
+	// run on child_1 level
+	parent_cmd = create_commands_for_multi_run_handlers()
+	parent_cmd.set_arguments([ "-D", "false", "list_c1" ])
+	status = parent_cmd.run() or {
+		panic("b2. running on child_1 (list_c1)... error, $err")
+	}
+	assert status == i8(status_ok)
+
+	// run on grand_1 level
+	parent_cmd = create_commands_for_multi_run_handlers()
+	parent_cmd.set_arguments([ "-D", "false", "list_c1", "-C", "public_admin", "category_g1" ])
+	status = parent_cmd.run() or {
+		panic("b2. running on grand_1 (category_g1)... error, $err")
+	}
+	assert status == i8(status_ok)
+
+	// directly re-use the command... might have issue (since there is no reset... feature on the parsed data)
+	// somehow, a Command instance would normally not be re-used; 
+	// each comamnd execution is a one-off operation and exits no matter success or failure.
+	// [depcrecated] logically should not happen
+	/* 
+	parent_cmd.set_arguments(["--documentation", "list_c1", "-I", "false" ])
+	status = parent_cmd.run() or {
+		panic("b2. running on grand_1 (category_g1)... error, $err")
+	}
+	assert status == i8(status_ok)
+	*/
+}
+
+fn create_commands_for_help() (&Command) {
+	mut course := Command{
+		name: "course_p1"
+	}
+	mut list := Command{
+		name: "list_c1"
+	}
+	mut query := Command{
+		name: "query_c2"
+	}
+	mut subject := Command{
+		name: "subject_g1_c2"
+	}
+	// relationship
+	course.add_command(mut list)
+	course.add_command(mut query)
+	query.add_command(mut subject)
+	// flag(s) if required...
+	// the help fn
+	course.help_handler = fn (c &Command) string {
+		return "** help - parent -> course_p1 **"
+	}
+	list.help_handler = fn (c &Command) string {
+		return "** help - child -> list_c1 **"
+	}
+	query.help_handler = fn (c &Command) string {
+		return "** help - child -> query_c2 **"
+	}
+	subject.help_handler = fn (c &Command) string {
+		return "** help - grandchild -> subject_g1_c2 **"
+	}
+
+	return &course
+}
+
+// test_help - test on the help fn. Should be able to choose the correct sub-command for displaying the correct help message.
+fn test_help() {
+	println("\n### command_structures_test.test_help ###\n")
+	
+	mut non_set_cmd := Command{
+		name: "vcommand",
+		short_description: "'vcommand' provides a superb experience on creating CLIs at your finger-tips.",
+		description: "In order to create a CLI, you would need to brainstorm these points:\n   1. Functionalities\n   2. Documentations\n   3. Execution order\nAlso, read the tutorials...",
+	}
+	mut non_set_child1 := Command{
+		name: "list",
+		short_description: "list the commands available (demo purpose)",
+		description: "Hi There~ a Long description; you can include a code sample here as well"
+	}
+	mut non_set_child2 := Command{
+		name: "update",
+		short_description: "update a specific commands (demo purpose)",
+		description: "A good idea to update a specific command based on the [subject] flag."
+	}
+	mut non_set_grand1 := Command{
+		name: "storage",
+		//short_description: "storage mechanism on the update.",
+		description: "where to store the results? Use flag [--medium/-M] to declare the approach."
+	}
+	// relationship
+	non_set_cmd.add_command(mut non_set_child1)
+	non_set_cmd.add_command(mut non_set_child2)
+	non_set_child2.add_command(mut non_set_grand1)
+
+	// flags
+	non_set_cmd.set_flag(true, "edition", "E", flag_type_string, "get info on the specified edition value.", false)
+	non_set_cmd.set_flag(true, "enroll", "", flag_type_bool, "enroll now?", true)
+	non_set_cmd.set_flag(true, "", "C", flag_type_int, "classification number", true)
+	non_set_cmd.set_flag(false, "values", "V", flag_type_map_of_string, "a key-value pair structure", false)
+
+	non_set_child2.set_flag(false, "arguments", "", flag_type_map_of_string, "arguments in key-value(s)", true)
+
+	non_set_grand1.set_flag(true, "medium", "M", flag_type_i8, "medium for storage, 0-file, 1-stdout", false)
+
+	println("** default-help =>\n-=-=-=-=-=-=-=-=-=\n\n${non_set_cmd.help()}\n-=-=-=-=-=-=-=-=-=\n")
+	non_set_cmd.set_arguments(["list"])
+	println("** default-help (list) =>\n-=-=-=-=-=-=-=-=-=\n\n${non_set_cmd.help()}\n-=-=-=-=-=-=-=-=-=\n")
+	non_set_cmd.set_arguments(["update", "--arguments", "fruit=apple", "--arguments", "subject=science"])
+	println("** default-help (update) =>\n-=-=-=-=-=-=-=-=-=\n\n${non_set_cmd.help()}\n-=-=-=-=-=-=-=-=-=\n")
+	non_set_cmd.set_arguments(["update", "--arguments", "fruit=apple", "--arguments", "subject=science", "-M", "1", "storage"])
+	println("** default-help (update storage) =>\n-=-=-=-=-=-=-=-=-=\n\n${non_set_cmd.help()}\n-=-=-=-=-=-=-=-=-=\n")
+	
+	// * test on multi customed help fn
+	mut parent_cmd := create_commands_for_help()
+
+	// run on parent level (no need to set flags as not configured here)
+	println(parent_cmd.help())
+
+	// run on child level 
+	parent_cmd = create_commands_for_help()
+	parent_cmd.set_arguments(["list_c1"])
+	println(parent_cmd.help())
+
+	// run on another child level 
+	parent_cmd = create_commands_for_help()
+	parent_cmd.set_arguments(["query_c2"])
+	println(parent_cmd.help())
+
+	// run on another grand_child level 
+	parent_cmd = create_commands_for_help()
+	parent_cmd.set_arguments(["query_c2", "subject_g1_c2"])
+	println(parent_cmd.help())
+	
+	// error : unknown sub-command
+	parent_cmd = create_commands_for_help()
+	parent_cmd.set_arguments(["query_c2", "unknown_sub_cmd"])
+	println(parent_cmd.help())
+
+	// error : unknown flag
+	parent_cmd = create_commands_for_help()
+	parent_cmd.set_arguments(["query_c2", "subject_g1_c2", "--unknown_flag"])
+	println(parent_cmd.help())
+
+	// run on another child level 
+	parent_cmd = create_commands_for_help()
+	parent_cmd.set_arguments(["query_c2"])
+	println(parent_cmd.help())
+}
+
 // is_help_value_correct - helper method to check whether the help flag's value is the same as [value].
 fn is_help_value_correct(cmd &Command, is_local bool, key string, value bool) bool {
 	v := cmd.get_bool_flag_value(is_local, key, "") or {
