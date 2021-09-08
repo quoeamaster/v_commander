@@ -394,6 +394,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('the command sequence [ pay.register ] to be executed is not VALID') or {
 			panic("f3. unexpected, $err")
 		}
+		//println("[debug] $err")
 		(&Command{})
 	}
 	assert target_command.name == ""
@@ -410,6 +411,7 @@ fn test_sub_commands_2 () {
 		err.msg.index("a required local flag [method/M] is missing") or {
 			panic("f4a. unexpected, $err")
 		}
+		//println(err)
 		(&Command{})
 	}
 	assert target_command.name == ""

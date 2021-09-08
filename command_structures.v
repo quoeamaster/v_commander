@@ -83,7 +83,7 @@ pub mut:
 // default_help_handler - default help generator.
 fn default_help_handler(mut c &Command) string {
 	mut s := new_string_buffer(128)
-	// TODO: change the return object to "reference" / pointer.
+	// change the return object to "reference" / pointer.
 	mut target_cmd := c.parse_arguments() or {
 		// error, assume the current command (c) would be a clue to how to use this CLI / Command
 		s.write_string("${red(err.msg)}\n")
@@ -287,6 +287,7 @@ fn (mut c Command) parse_arguments() ?&Command {
 	args_len := args.len
 	mut idx := 0
 	mut parsed_flags_map := map[string]Parsed_flag{}
+	mut cmd_name := c.name
 
 	if args_len == 0 {
 		// nothing to parse, return true -> all valid
@@ -329,7 +330,7 @@ fn (mut c Command) parse_arguments() ?&Command {
 				// --flag {unknown} -> --flag (non-bool, unknown) -> handled as "--flag=unknown"
 				if !is_flag && (is_sub_command.name != "") {
 					// a. next value is a VALID subcommand
-					// TODO: key -> arg could be --flag or -F, will parse this at later stage in this fn.
+					// key -> arg could be --flag or -F, will parse this at later stage in this fn.
 					p_flag := Parsed_flag{
 						name: arg,
 						value_in_string: "true",
@@ -393,25 +394,8 @@ fn (mut c Command) parse_arguments() ?&Command {
 		// example. course.register.update is the sequence; so would need to check whether
 		// course has register as sub-command AND
 		// register has update as sub-command.
-		/* 
-		// [deprecated] 
-		// not necessary as the last sequence would be the target command (reference) in general
-		for sub_cmd in c.sub_command_sequence {
-			mut found := false
-			for c_cmd in target_command.sub_commands {
-				if c_cmd.name == sub_cmd.name {
-					target_command = c_cmd
-					found = true
-					break
-				}
-			}
-			if !found {
-				return error("[Command][parse_arguments] failed to find the sub-command [${sub_cmd.name}]. Available commands -> ${c.sub_commands}.")
-			}
-		}*/
-
+		
 		// find the target_command based on the sequences (also if the sequence is incorrect i.e. sub-commmand not found... throw error)
-		//target_command = c
 		for _, cmd_seq in c.sub_command_sequence {
 			mut found := false
 			for _, current_cmd in target_command.sub_commands {
@@ -431,10 +415,14 @@ fn (mut c Command) parse_arguments() ?&Command {
 					}
 					seq_str += "$v.name"
 				}
-				return error("[Command][parse_arguments] the command sequence [ $seq_str ] to be executed is not VALID, please check the documentations on how to use the Command.")
+				// build the cmd sequence label
+				if c.sub_command_sequence.len > 0 {
+					cmd_name = c.sub_command_sequence[0].name
+				}
+				info_msg := yellow('Use "${cmd_name} [command] --help" for more information about a command.') 
+				return error('[Command][parse_arguments] the command sequence [ $seq_str ] to be executed is not VALID, please check the documentations on how to use the Command. ${info_msg}')
 			}
 		}
-		//target_command = c.sub_command_sequence[c.sub_command_sequence.len-1]
 		// inherit all parent level fwd flag(s) first
 		target_command.merge_with_parent_forwardable_flags()
 	}
@@ -459,7 +447,8 @@ fn (mut c Command) parse_arguments() ?&Command {
 				// add back the possible_bool_type check... 
 				// e.g. if parsed_flags_map -> p_flag.possible_bool_type == true BUT l_flag.flag_type != flag_type_bool => error(incompatible type)
 				if l_flag.flag_type != flag_type_bool && p_flag.possible_bool_type {
-					return error("[Command][parse_arguments] flag [$l_flag.flag/$l_flag.short_flag] is non bool-typed, but the provided value for this flag is a bool valued [$p_flag.value_in_string].")
+					info_msg := yellow('Use "${cmd_name} [command] --help" for more information about a command.') 
+					return error("[Command][parse_arguments] flag [$l_flag.flag/$l_flag.short_flag] is non bool-typed, but the provided value for this flag is a bool valued [$p_flag.value_in_string]. ${info_msg}")
 				}
 				target_command.set_parsed_flag_value_by_string_value(true, flag_key, l_flag.flag_type, 
 					p_flag.value_in_string)?
@@ -467,19 +456,6 @@ fn (mut c Command) parse_arguments() ?&Command {
 				//println("[debug] set~ $key -> $target_command.parsed_local_flags_map")
 			}
 		}
-		/*
-		if "--"+l_flag.flag in parsed_flags_map {
-			// found (long)
-			//v_str := parsed_flags_map[l_flag.flag]
-			target_command.set_parsed_flag_value_by_string_value(true, flag_key, l_flag.flag_type, 
-				parsed_flags_map["--"+l_flag.flag].value_in_string)?
-
-		} else if "-"+l_flag.short_flag in parsed_flags_map {
-			// found (short)
-			target_command.set_parsed_flag_value_by_string_value(true, flag_key, l_flag.flag_type, 
-				parsed_flags_map["-"+l_flag.short_flag].value_in_string)?
-		}
-		*/
 	}
 	// set fwd flags on target_cmd
 	for f_flag in target_command.forwardable_flags {
@@ -495,24 +471,13 @@ fn (mut c Command) parse_arguments() ?&Command {
 			// set
 			if f_flag.flag == key || f_flag.short_flag == key {
 				if f_flag.flag_type != flag_type_bool && p_flag.possible_bool_type {
-					return error("[Command][parse_arguments] flag [$f_flag.flag/$f_flag.short_flag] is non bool-typed, but the provided value for this flag is a bool valued [$p_flag.value_in_string].")
+					info_msg := yellow('Use "${cmd_name} [command] --help" for more information about a command.') 
+					return error("[Command][parse_arguments] flag [$f_flag.flag/$f_flag.short_flag] is non bool-typed, but the provided value for this flag is a bool valued [$p_flag.value_in_string]. ${info_msg}")
 				}
 				target_command.set_parsed_flag_value_by_string_value(false, flag_key, f_flag.flag_type, 
 					p_flag.value_in_string)?
 			}
 		}
-		/*
-		if "--"+f_flag.flag in parsed_flags_map {
-			// found (long)
-			target_command.set_parsed_flag_value_by_string_value(false, flag_key, f_flag.flag_type, 
-				parsed_flags_map["--"+f_flag.flag].value_in_string)?
-
-		} else if "-"+f_flag.short_flag in parsed_flags_map {
-			// found (short)
-			target_command.set_parsed_flag_value_by_string_value(false, flag_key, f_flag.flag_type, 
-				parsed_flags_map["-"+f_flag.short_flag].value_in_string)?
-		}
-		*/
 	}
 	target_command.merge_with_parent_forwardable_flag_map()
 	// [debug]
@@ -619,7 +584,8 @@ fn (c Command) has_any_unknown_flags(parsed_flags_map map[string]Parsed_flag) ?b
 			continue
 		}
 		// if reach here, means the "key" not found in both parsed flags
-		return error("[Command][has_any_unknown_flags] unknown key $k")
+		info_msg := yellow('Use "${c.name} [command] --help" for more information about a command')
+		return error("[Command][has_any_unknown_flags] unknown key ${k}. ${info_msg}")
 	}
 	return true
 }
@@ -629,7 +595,7 @@ pub fn (mut c Command) help(handler ...fn(cmd &Command) string) string {
 	// find the correct sub-command to show help
 	mut target_cmd := c.parse_arguments() or {
 		// TODO: integrate with the default help fn instead...
-		return "[Command][help] parse arguments failed, reason: ${err}."
+		return "[Command][help] parse arguments failed, reason: ${err}"
 	}
 
 	if handler.len != 0 {
@@ -671,12 +637,13 @@ pub fn (mut c Command) set_flag(is_local bool, flag string, short_flag string, f
 
 // is_all_required_flags_set - method to check whether all required flag(s) are set.
 fn (c Command) is_all_required_flags_set() ?bool {
+	info_msg := yellow('Use "${c.name} [command] --help" for more information about a command')
 	// local flags
 	for flag in c.local_flags {
 		if flag.required {
 			flag_key := c.build_flag_key(flag.flag, flag.short_flag)
 			if (flag_key in c.parsed_local_flags_map) == false {
-				return error("[Command][is_all_required_flags_set] a required local flag [${flag.flag}/${flag.short_flag}] is missing.")
+				return error("[Command][is_all_required_flags_set] a required local flag [${flag.flag}/${flag.short_flag}] is missing. ${info_msg}")
 			}
 		}
 	}
@@ -685,7 +652,7 @@ fn (c Command) is_all_required_flags_set() ?bool {
 		if flag.required {
 			flag_key := c.build_flag_key(flag.flag, flag.short_flag)
 			if (flag_key in c.parsed_forwardable_flags_map) == false {
-				return error("[Command][is_all_required_flags_set] a required forwardable flag [${flag.flag}/${flag.short_flag}] is missing.")
+				return error("[Command][is_all_required_flags_set] a required forwardable flag [${flag.flag}/${flag.short_flag}] is missing. ${info_msg}")
 			}
 		}
 	}
@@ -1184,39 +1151,6 @@ pub fn (mut c Command) read_all_from_stream() []byte {
 	// convert to string -> https://modules.vlang.io/strings.html#Builder.str
 	// convert from []byte to string -> string(b_content)
 
-	// [debug]
-	//println("#$#$#$#$ -> ${c.out_buffer.len} vs ${c.out_buffer.cap}")
-
-	// find the correct target_command and read its out_buffer instead
-	/* 
-	// [deprecated] since a sync of output buffer has been done within the run_handler automatically.
-	mut target_command := c
-	if c.sub_command_sequence.len > 0 {
-		for _, scmd in c.sub_command_sequence {
-			mut found := false
-			for _, current_scmd in target_command.sub_commands {
-				if current_scmd.name == scmd.name {
-					target_command = current_scmd
-					found = true
-					break
-				}
-			}
-			if !found {
-				mut seq_str := ""
-				for i, s in c.sub_command_sequence {
-					if i > 0 {
-						seq_str += "."
-					} 
-					seq_str += s.name
-				}
-				println("[Command][read_all_from_stream] failed to find the correct target command to read its output buffer, provided sequence [$seq_str].")
-				return []byte{}
-			}
-		}
-	}
-	println("[debug] target_command -> $target_command, $c")
-	*/
-
 	mut b_content := c.out_buffer.to_string(false).bytes()
 	// remove leading + trailing '\0'
 	// handling trailing '\0'
@@ -1251,13 +1185,6 @@ pub fn (mut c Command) read_all_from_stream() []byte {
 	if has_zero_char {
 		b_content = b_content[idx..b_content.len]
 	}
-	// remove trailing `\n` (only remove once)
-	/*
-	idx = b_content.len-1
-	if b_content[idx] == `\n` {
-		b_content = b_content[0..b_content.len-1]
-	}
-	*/
 	return b_content
 }
 
