@@ -87,7 +87,8 @@ fn default_help_handler(mut c &Command) string {
 	mut target_cmd := c.parse_arguments() or {
 		// error, assume the current command (c) would be a clue to how to use this CLI / Command
 		s.write_string("${red(err.msg)}\n")
-		(*c)
+		//(*c) // -> if return type is Command then (*c)
+		c
 	}
 	// short description
 	if target_cmd.short_description != "" {
@@ -198,8 +199,6 @@ pub fn (mut c Command) run(handler ...fn(mut cmd &Command, args []string) ?i8) ?
 	c.add_forwardable_help_flag()
 	c.merge_with_parent_forwardable_flag_map()
 	
-	// [deprecated]
-	// c.parse_argument()?
 	// run the args parsing before trigger the handler
 	mut target_command := c.parse_arguments() or {
 		return err
@@ -207,7 +206,7 @@ pub fn (mut c Command) run(handler ...fn(mut cmd &Command, args []string) ?i8) ?
 
 	// should we just run the help_handler instead of execution???
 	if target_command.is_flag_set(false, "help", "H") {
-		help_msg := target_command.help_handler(&target_command)
+		help_msg := target_command.help_handler(target_command)
 		// so that the stream is still available for debug purpose
 		target_command.out_buffer.write_string(help_msg)
 			target_command.stdout.write(help_msg.bytes()) or {
@@ -218,7 +217,7 @@ pub fn (mut c Command) run(handler ...fn(mut cmd &Command, args []string) ?i8) ?
 
 	mut status := i8(status_ok)
 	// execute the run_handler
-	status = target_command.run_handler(&target_command, c.get_arguments()) or {
+	status = target_command.run_handler(target_command, c.get_arguments()) or {
 		return error("[Command][run] error found, reason: $err")
 	}
 
@@ -266,7 +265,7 @@ fn (mut c Command) add_forwardable_help_flag() {
 	}
 }
 
-fn (mut c Command) parse_arguments() ?Command {
+fn (mut c Command) parse_arguments() ?&Command {
 	// [design]
 	// 1. parse all possible flags and sub-commands (no validation yet)
 	//		c.is_argument_valid_subcommand(string)
@@ -301,7 +300,6 @@ fn (mut c Command) parse_arguments() ?Command {
 		//		c.is_argument_valid_flag(string)
 		// 	-> eventually a Map of Parsed_flag(s) ... iterate and check whether any parsed_flag is INVALID...
 		arg := args[idx].str()
-		// TODO *** sample sequences > "--help", "-N", "PetER"
 		sub_cmd := c.is_argument_valid_subcommand(arg)
 		// a valid sub-command
 		if sub_cmd.name != "" {
@@ -389,7 +387,7 @@ fn (mut c Command) parse_arguments() ?Command {
 	//    c.merge_with_parent_forwardable_flags() 
 	//		then decided how to parse all the values available.
 	//
-	mut target_command := c
+	mut target_command := &c
 	if c.sub_command_sequence.len > 0 {
 		// whether the sub command sequences are valid
 		// example. course.register.update is the sequence; so would need to check whether
@@ -413,7 +411,7 @@ fn (mut c Command) parse_arguments() ?Command {
 		}*/
 
 		// find the target_command based on the sequences (also if the sequence is incorrect i.e. sub-commmand not found... throw error)
-		target_command = c
+		//target_command = c
 		for _, cmd_seq in c.sub_command_sequence {
 			mut found := false
 			for _, current_cmd in target_command.sub_commands {
@@ -535,7 +533,7 @@ fn (mut c Command) parse_arguments() ?Command {
 	// check whether any unknown flags parsed.
 	target_command.has_any_unknown_flags(parsed_flags_map)?
 
-	return target_command
+	return &target_command
 }
 
 // set_parsed_flag_value_by_string_value - set the provided flag's value to the corresponding parsed flag map.
@@ -626,141 +624,6 @@ fn (c Command) has_any_unknown_flags(parsed_flags_map map[string]Parsed_flag) ?b
 	return true
 }
 
-// [deprecated] replaced by parse_arguments fn instead.
-// parse_arguments - parse CLI arguments and associate them with the available flag(s).
-fn (mut c Command) parse_argument() ?bool {
-	args := c.get_arguments()
-	args_len := args.len
-	mut idx := 0
-
-	if args_len == 0 {
-		return true
-	}
-	// sub_command - whether a sub-command is required to execute. (reset)
-	c.sub_command_sequence = []Command{}
-	for {
-		arg := args[idx].str()
-		// is it a flag?
-		if c.is_argument_valid_flag(arg) {
-			flag, is_local := c.get_flag_by_name(arg)
-			// no VALID flag found for this argument value
-			if flag.flag == "" && flag.short_flag == "" {
-				return error("[Command][parse_arguments] invalid flag: $arg")
-			}
-			// key for flag
-			mut key := flag.flag
-			if key == "" {
-				key = flag.short_flag
-			}
-			// value for flag
-			// a SIMPLE rule is a "flag" should be associated with an immediate "value" 
-			// (exception: for bool flags, the "value" is optional)
-			mut value := ""
-			if flag.flag_type == flag_type_bool {
-				// check whether the next argument is a bool (true/false)
-				if idx+1 >= args_len {
-					// index out of bound check
-					// no more additional value after this flag; PLUS as a bool flag, the value then must be TRUE.
-					c.set_parsed_flag_value(is_local, key, true)
-
-				} else {
-					value = args[idx+1].str().to_lower()
-					if value == "true" {
-						c.set_parsed_flag_value(is_local, key, true)
-						idx++
-
-					} else if value == "false" {
-						c.set_parsed_flag_value(is_local, key, false)
-						idx++
-
-					} else {
-						// was not a bool, instead something else like a sub-command or another flag
-						// hence treat this bool flag's value TRUE.
-						c.set_parsed_flag_value(is_local, key, true)
-					}
-				}
-			} else {
-				idx++
-				if idx >= args_len {
-					// index out of bound check
-					return error("[Command][parse_arguments] flag '$arg' missing a value.")
-				}
-				value = args[idx].str()
-				// is it another flag again???
-				if c.is_argument_valid_flag(value) {
-					return error("[Command][parse_arguments] flag '$arg' missing a value.")
-				}
-				// check if the value is a sub-command
-				sub_command := c.is_argument_valid_subcommand(value)
-				if sub_command.name != "" {
-					return error("[Command][parse_arguments] flag '$arg' missing a value. Instead a sub-command is provided.")
-				}
-				//sub_command_sequence << sub_command // (should not update the sub-command sequence in this case)
-
-				// "value" is NOT a sub-command; simply a VALID value associated to the current Key.
-				match flag.flag_type {
-					flag_type_string { c.set_parsed_flag_value(is_local, key, value) }
-					flag_type_int { 
-						v := strconv.atoi(value) or {
-							return error("[Command][parse_arguments] failed to convert value to 'int', reason [$err]")
-						}
-						c.set_parsed_flag_value(is_local, key, v) 
-					}
-					flag_type_i8 {
-						v := strconv.atoi(value) or {
-							return error("[Command][parse_arguments] failed to convert value to 'i8', reason [$err]")
-						}
-						c.set_parsed_flag_value(is_local, key, i8(v)) 
-					}
-					flag_type_bool {
-						v := value.to_lower()
-						if v == "true" {
-							c.set_parsed_flag_value(is_local, key, true) 
-						} else {
-							c.set_parsed_flag_value(is_local, key, false) 
-						}
-					}
-					flag_type_float {
-						v := strconv.atof64(value)
-						c.set_parsed_flag_value(is_local, key, f32(v))
-					}
-					flag_type_map_of_string {
-						// is it in format sub_key=sub_value ?
-						kv := value.split("=")
-						if kv.len != 2 {
-							return error("[Command][parse_arguments] failed to convert value {$value} to key-value pair. (expect format > 'key=value').")
-						}
-						// set the kv into the parsed-map
-						c.set_parsed_flag_kv_value(is_local, key, kv[0], kv[1])
-					}
-					else { return error("[Command][parse_arguments] unsupported type ${flag.flag_type}") }
-
-				} // end - match (flag.flag_type)
-			} // end - if (flag.flag_type == bool)
-			
-		} else {
-			// TODO: check the sub-command logics here...
-			// should be a sub-command... if not found, then would result an error. 
-			sub_command := c.is_argument_valid_subcommand(arg)
-			if sub_command.name == "" {
-				return error("[Command][parse_arguments] value '$arg' is not a VALID sub-command NOR a VALID flag.")
-			}
-			c.sub_command_sequence << sub_command
-		}
-		idx++
-		if idx >= args_len {
-			break
-		}
-	}
-	// the "required" flag check
-	c.is_all_required_flags_set()?
-	// [debug]
-	//println("## local_flags_map:\n${c.parsed_local_flags_map}")
-	//println("## fwd_flags_map:\n${c.parsed_forwardable_flags_map}")
-	//println("## sub_command_sequences -> $sub_command_sequence")
-	return true
-}
-
 // help - set the provided [handler] to the CLI and execute it. [help] facilitates a customized help message if necessary.
 pub fn (mut c Command) help(handler ...fn(cmd &Command) string) string {
 	// find the correct sub-command to show help
@@ -773,7 +636,7 @@ pub fn (mut c Command) help(handler ...fn(cmd &Command) string) string {
 		target_cmd.help_handler = handler[0]
 	}
 	// execute
-	return target_cmd.help_handler(&target_cmd)
+	return target_cmd.help_handler(target_cmd)
 }
 
 // set_arguments - set the [args] for this CLI.

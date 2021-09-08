@@ -103,6 +103,7 @@ fn test_run_handler() {
 
 	// run_handler fn for test
 	run_fn := fn (c &Command, args []string) ?i8 {
+		//println("[debug] $c")
 		if c.name == "parent" {
 			return i8(main.status_ok)
 		} else {
@@ -412,7 +413,7 @@ fn test_adding_flags() {
 		i8(status_fail)
 	}
 	assert result == i8(status_ok)
-	
+
 	// * test on setting a non available flag cause error
 	cmd = Command{
 		name: "parent4"
@@ -428,7 +429,7 @@ fn test_adding_flags() {
 		err.msg.index('unknown key --unknown') or {
 			panic("k. expect parsing failure, contains 'unknown key --unknown', actual $err")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 	
@@ -551,64 +552,50 @@ fn test_remove_flag() {
 	cmd.set_flag(false, "", "a", flag_type_i8, "age value", true)
 	cmd.set_flag(false, "", "b", flag_type_i8, "best score", false)
 	cmd.set_arguments([ "--contains" "how are you TODAY?", "-a", "12", "-b", "100" ])
-	mut b_result := cmd.parse_argument() or {
+	mut t_cmd := cmd.parse_arguments() or {
 		panic("unexpected error in parsing arguments, reason: $err")
 	}
-	assert cmd.remove_flag(true, "contains", "C") == true
-	assert cmd.remove_flag(false, "", "a") == true
-	assert cmd.local_flags.len == 0
-	assert cmd.forwardable_flags.len == 1
-	assert cmd.parsed_local_flags_map.len == 0
-	assert cmd.parsed_forwardable_flags_map.len == 1
-
+	assert t_cmd.remove_flag(true, "contains", "C") == true
+	assert t_cmd.remove_flag(false, "", "a") == true
+	assert t_cmd.local_flags.len == 0
+	assert t_cmd.forwardable_flags.len == 1
+	assert t_cmd.parsed_local_flags_map.len == 0
+	assert t_cmd.parsed_forwardable_flags_map.len == 1
+	
 	// * test on after removing flags, the parse would fail due to invalid flag
-	b_result = cmd.parse_argument() or {
+	t_cmd = cmd.parse_arguments() or {
 		idx := err.msg.index("[Command][parse_arguments] invalid flag:") or {
 			panic("unexpected error in parsing arguments, reason: $err")
 		}
-		false
+		(&Command{})
 	}
-	assert b_result == false
+	assert t_cmd.name == "c1"
+	//println("[debug] $t_cmd")
 
 	// * test on removing a valid key but on the wrong repo; should return false...
 	cmd.set_flag(true, "contains", "C", flag_type_string, "contains provided text", false)
 	cmd.set_flag(false, "", "a", flag_type_i8, "age value", true)
 	cmd.set_arguments([ "--contains" "how are you TODAY?", "-a", "12", "-b", "100" ])
-	b_result = cmd.parse_argument() or {
+	t_cmd = &Command{}
+	t_cmd = cmd.parse_arguments() or {
 		panic("unexpected error in parsing arguments, reason: $err")
+		(&Command{})
 	}
-	assert b_result == true
-	assert cmd.remove_flag(false, "contains", "C") == false
-	assert cmd.local_flags.len == 1
-	assert cmd.parsed_local_flags_map.len == 1
-	assert cmd.forwardable_flags.len == 2
-	assert cmd.parsed_forwardable_flags_map.len == 2
-
-	assert cmd.remove_flag(true, "", "b") == false
-	assert cmd.local_flags.len == 1
-	assert cmd.parsed_local_flags_map.len == 1
-	assert cmd.forwardable_flags.len == 2
-	assert cmd.parsed_forwardable_flags_map.len == 2
-
+	assert t_cmd.name != ""
+	assert t_cmd.remove_flag(false, "contains", "C") == false
+	assert t_cmd.remove_flag(true, "", "b") == false
+	
 	// * test on removing a non exist flag in both repo
-	assert cmd.remove_flag(true, "unknown", "u") == false
-	assert cmd.local_flags.len == 1
-	assert cmd.parsed_local_flags_map.len == 1
-	assert cmd.forwardable_flags.len == 2
-	assert cmd.parsed_forwardable_flags_map.len == 2
-
-	assert cmd.remove_flag(false, "", "u") == false
-	assert cmd.local_flags.len == 1
-	assert cmd.parsed_local_flags_map.len == 1
-	assert cmd.forwardable_flags.len == 2
-	assert cmd.parsed_forwardable_flags_map.len == 2
-
+	assert t_cmd.remove_flag(true, "unknown", "u") == false
+	
+	assert t_cmd.remove_flag(false, "", "u") == false
+	
 	// * test on after removing non existing keys, should NOT have error
-	b_result = cmd.parse_argument() or {
+	t_cmd = cmd.parse_arguments() or {
 		panic("unexpected error in parsing arguments, reason: $err")
 	}
-	assert b_result == true
-	i81 := cmd.get_i8_flag_value(false, "", "b") or {
+	assert t_cmd.name != empty_command.name
+	i81 := t_cmd.get_i8_flag_value(false, "", "b") or {
 		panic("failed to parse i8 flag [-b], reason: $err")
 	}
 	assert i81 == i8(100)

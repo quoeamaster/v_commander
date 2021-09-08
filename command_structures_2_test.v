@@ -114,7 +114,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('a required local flag [catalog/] is missing') or {
 			panic ("a1.1. expect parsing fail, but err msg contains 'a required local flag [catalog/] is missing.', actual [$err]")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -123,7 +123,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('unknown key -N') or {
 			panic("a1. expect parsing fail, but err msg contains 'unknown key -N', actual [$err].")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -133,14 +133,14 @@ fn test_sub_commands_2 () {
 		err.msg.index('unknown key -N') or {
 			panic("a2. expect parsing fail, but err msg contains 'unknown key -N', actual [$err].")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
 	course_parent_cmd.set_arguments([ "--catalog", 'mba accounting' ])
 	target_command = course_parent_cmd.parse_arguments() or {
 		panic("a2.1. unexpected error [$err].")
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == "course"
 	any_v := target_command.parsed_local_flags_map["catalog"]
@@ -189,7 +189,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('invalid bool value provided [wrong_bool_value]') or {
 			panic("c1. parsing error, $err")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -199,7 +199,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('invalid bool value provided [wrong_bool_value]') or {
 			panic("c2. parsing error, $err")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -209,7 +209,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('a required local flag [catalog/] is missing') or {
 			panic ("3a.1. expect parsing fail, but err msg contains 'a required local flag [catalog/] is missing.', actual [$err]")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -219,7 +219,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('a required local flag [catalog/] is missing') or {
 			panic ("3a.2. expect parsing fail, but err msg contains 'a required local flag [catalog/] is missing.', actual [$err]")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 	
@@ -229,7 +229,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('unknown key --unknown_flag') or {
 			panic("c3.1. expect fail parsing, but contains 'unknown key --unknown_flag', actual [$err]")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 	
@@ -240,7 +240,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('flag [gender/] is non bool-typed, but the provided value for this flag is a bool valued') or {
 			panic("c3.2 expect containing 'flag [gender/] is non bool-typed, but the provided value for this flag is a bool valued', actual $err")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 	
@@ -258,7 +258,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('unknown key --catalog') or {
 			panic("d2. unexpected [$err]")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -308,7 +308,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('is non bool-typed, but the provided value for this flag is a bool valued') or {
 			panic("d1.4. unexpected [$err]")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -394,7 +394,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('the command sequence [ pay.register ] to be executed is not VALID') or {
 			panic("f3. unexpected, $err")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -403,14 +403,14 @@ fn test_sub_commands_2 () {
 		panic("f4. unexpected, $err")
 	}
 	assert target_command.name == "pay"
-	assert is_help_value_correct(&target_command, false, "help", false) == true
+	assert is_help_value_correct(target_command, false, "help", false) == true
 
 	course_parent_cmd_1.set_arguments([ "register", "pay" ])
 	target_command = course_parent_cmd_1.parse_arguments() or {
 		err.msg.index("a required local flag [method/M] is missing") or {
 			panic("f4a. unexpected, $err")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -419,7 +419,7 @@ fn test_sub_commands_2 () {
 		err.msg.index("flag [method/M] is non bool-typed, but the provided value for this flag is a bool valued [true]") or {
 			panic("f4b. unexpected, $err")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -428,7 +428,7 @@ fn test_sub_commands_2 () {
 		err.msg.index("flag [method/M] is non bool-typed, but the provided value for this flag is a bool valued [false]") or {
 			panic("f4c. unexpected, $err")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -438,7 +438,7 @@ fn test_sub_commands_2 () {
 		err.msg.index("a required local flag [name/N] is missing") or {
 			panic("f5a. unexpected, $err")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -447,7 +447,7 @@ fn test_sub_commands_2 () {
 		err.msg.index("unknown key --method") or {
 			panic("f5b. unexpected, $err")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -456,28 +456,28 @@ fn test_sub_commands_2 () {
 		panic("f5c. unexpected, $err")
 	}
 	assert target_command.name == "register"
-	assert is_help_value_correct(&target_command, false, "help", true) == true
+	assert is_help_value_correct(target_command, false, "help", true) == true
 
 	course_parent_cmd_1.set_arguments([ "register", "-N", "OliVer", "--help", "false" ])
 	target_command = course_parent_cmd_1.parse_arguments() or {
 		panic("f5c. unexpected, $err")
 	}
 	assert target_command.name == "register"
-	assert is_help_value_correct(&target_command, false, "help", false) == true
+	assert is_help_value_correct(target_command, false, "help", false) == true
 
 	course_parent_cmd_1.set_arguments([ "update", "--user", "JoSH" ])
 	target_command = course_parent_cmd_1.parse_arguments() or {
 		panic("f5d.1. unexpected, $err")
 	}
 	assert target_command.name == "update"
-	assert is_help_value_correct(&target_command, false, "help", false) == true
+	assert is_help_value_correct(target_command, false, "help", false) == true
 
 	course_parent_cmd_1.set_arguments([ "update", "--user", "JoSH", "--help", "false" ])
 	target_command = course_parent_cmd_1.parse_arguments() or {
 		panic("f5d.2. unexpected, $err")
 	}
 	assert target_command.name == "update"
-	assert is_help_value_correct(&target_command, false, "help", false) == true
+	assert is_help_value_correct(target_command, false, "help", false) == true
 
 	// * report related
 
@@ -486,8 +486,8 @@ fn test_sub_commands_2 () {
 		panic("f5e.1. unexpected, $err")
 	}
 	assert target_command.name == "overall"
-	assert is_help_value_correct(&target_command, false, "help", true) == true
-	assert is_i8_value_correct(&target_command, false, "format", i8(2)) == true
+	assert is_help_value_correct(target_command, false, "help", true) == true
+	assert is_i8_value_correct(target_command, false, "format", i8(2)) == true
 
 	// missing fwd format flag
 	course_parent_cmd_1.set_arguments([ "report", "overall", "--help", "false" ])
@@ -495,7 +495,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('a required forwardable flag [format/F] is missing') or {
 			panic("f5e.2. unexpected, $err")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 	
@@ -512,7 +512,7 @@ fn test_sub_commands_2 () {
 		err.msg.index('invalid value, [what] is not a valid sub-command NOR a valid flag') or {
 			panic("f5e.3. unexpected, $err")
 		}
-		Command{}
+		(&Command{})
 	}
 	assert target_command.name == ""
 
@@ -521,29 +521,29 @@ fn test_sub_commands_2 () {
 		panic("f5e.4. unexpected, $err")
 	}
 	assert target_command.name == "registration"
-	assert is_help_value_correct(&target_command, false, "help", false) == true
-	assert is_help_value_correct(&target_command, false, "help", true) == false
-	assert is_i8_value_correct(&target_command, false, "format", i8(1)) == true
-	assert is_i8_value_correct(&target_command, false, "format", i8(10)) == false
-	assert is_string_value_correct(&target_command, true, "class", "7S") == true
-	assert is_string_value_correct(&target_command, true, "class", "7s") == false
+	assert is_help_value_correct(target_command, false, "help", false) == true
+	assert is_help_value_correct(target_command, false, "help", true) == false
+	assert is_i8_value_correct(target_command, false, "format", i8(1)) == true
+	assert is_i8_value_correct(target_command, false, "format", i8(10)) == false
+	assert is_string_value_correct(target_command, true, "class", "7S") == true
+	assert is_string_value_correct(target_command, true, "class", "7s") == false
 
 	course_parent_cmd_1.set_arguments([ "report", "registration", "-F", "0" ])
 	target_command = course_parent_cmd_1.parse_arguments() or {
 		panic("f5e.4. unexpected, $err")
 	}
 	assert target_command.name == "registration"
-	assert is_help_value_correct(&target_command, false, "help", false) == true
-	assert is_i8_value_correct(&target_command, false, "format", i8(0)) == true
-	assert is_string_value_correct(&target_command, true, "class", "") == true
+	assert is_help_value_correct(target_command, false, "help", false) == true
+	assert is_i8_value_correct(target_command, false, "format", i8(0)) == true
+	assert is_string_value_correct(target_command, true, "class", "") == true
 
 	course_parent_cmd_1.set_arguments([ "--catalog", "reg" ])
 	target_command = course_parent_cmd_1.parse_arguments() or {
 		panic("f5e.5. unexpected, $err")
 	}
 	assert target_command.name == "course"
-	assert is_help_value_correct(&target_command, false, "help", false) == true
-	assert is_string_value_correct(&target_command, true, "catalog", "reg") == true
+	assert is_help_value_correct(target_command, false, "help", false) == true
+	assert is_string_value_correct(target_command, true, "catalog", "reg") == true
 }
 
 fn create_commands_for_multi_run_handlers() &Command {
