@@ -42,11 +42,6 @@ mut:
 	// sub_command_sequence - the sequence in which a sequence of sub-command(s) are involved. 
 	// This sequence affects which sub-command would be triggred to run its run_handler.
 	sub_command_sequence []Command
-	// run_handler - a function to handle business logics for this CLI - the core function. Returns an integer status.
-	run_handler fn(cmd &Command, args []string) ?i8
-	// help_handler - a function to produce the customized help message. If provided, the default help message generation 
-	// would be replaced by this function.
-	help_handler fn(&Command) string = default_help_handler
 	// args - set the arguments for the CLI. This function is handy for debug purpose as well.
 	args []string
 	// local_flags - the Flag(s) available for the CLI. Locally scoped means only this CLI would accept these Flag(s) 
@@ -78,18 +73,27 @@ pub mut:
 	description string
 	// version - the version of this CLI (e.g. "1.0.1 ga")
 	version string
+	// run_handler - a function to handle business logics for this CLI - the core function. Returns an integer status.
+	run_handler fn(cmd &Command, args []string) ?i8
+	// help_handler - a function to produce the customized help message. If provided, the default help message generation 
+	// would be replaced by this function.
+	help_handler fn(&Command) string = default_help_handler
 }
 
 // default_help_handler - default help generator.
 fn default_help_handler(mut c &Command) string {
 	mut s := new_string_buffer(128)
 	// change the return object to "reference" / pointer.
+	/* 
+	// [deprecated] should not need to parse arguments again...
 	mut target_cmd := c.parse_arguments() or {
 		// error, assume the current command (c) would be a clue to how to use this CLI / Command
 		s.write_string("${red(err.msg)}\n")
 		//(*c) // -> if return type is Command then (*c)
 		c
 	}
+	*/
+	mut target_cmd := c
 	// short description
 	if target_cmd.short_description != "" {
 		s.write_string("${target_cmd.short_description}\n\n")
@@ -203,7 +207,6 @@ pub fn (mut c Command) run(handler ...fn(mut cmd &Command, args []string) ?i8) ?
 	mut target_command := c.parse_arguments() or {
 		return err
 	}
-
 	// should we just run the help_handler instead of execution???
 	if target_command.is_flag_set(false, "help", "H") {
 		help_msg := target_command.help_handler(target_command)

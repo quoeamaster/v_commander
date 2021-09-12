@@ -21,9 +21,71 @@ module main
 import os
 
 fn main() {
-	c := Command{
-		name: "test_cmd"
+	mut fs_cmd := Command{
+		name: "fs",
+		short_description: "entry point of the file-system command, needs to combine with sub-commands to run actual work."
+		description: "A CLI to mimic common File-System operations such as 'list' and 'filter'.",
+		version: "1.0.0"
 	}
-	println(c)
-	println(os.args[1..os.args.len])
+	mut fs_list_cmd := Command{
+		name: "list",
+		description: "To list all files within the current folder. To apply a filter, run the [filter] command instead."
+		version: "1.0.0",
+	}
+	mut fs_filter_cmd := Command{
+		name: "filter",
+		short_description: "To filter out only certain files within the current folder."
+		version: "1.0.1a",
+		run_handler: fn (c &Command, args []string) ?i8 {
+			ext := c.get_string_flag_value(true, "pattern", "P") or {
+				panic("failed to get flag, $err")
+			}
+			files := os.walk_ext(".", ext)
+			// pretty print
+			for x in files {
+				println(x)
+			}
+			return i8(status_ok)
+		}
+	}
+	fs_cmd.add_command(mut fs_list_cmd)
+	fs_cmd.add_command(mut fs_filter_cmd)
+
+	fs_filter_cmd.set_flag(true, "pattern", "P", flag_type_string, "the pattern for filtering, e.g. '*.v'", true)
+
+	// main command only displays help, needs to work with sub-commands
+	fs_cmd.run_handler = fn (c &Command, args []string) ?i8 {
+		println(c.help_handler(c))
+		return i8(status_ok)
+	}
+
+	fs_list_cmd.run_handler = fn (c &Command, args []string) ?i8 {
+		os.walk(".", fn (f string) {
+			println(f)
+		})
+		return i8(status_ok)
+	}
+	// execute
+	mut status := fs_cmd.run() or {
+		panic("something wrong with the command execution, $err")
+	}
+	if status != i8(status_ok) {
+		panic("something wrong with the command execution")
+	}
+
+	// ISSUES -> running subcommand help has an error message??
+	/*
+	[Command][parse_arguments] invalid value, [filter] is not a valid sub-command NOR a valid flag.
+	To filter out only certain files within the current folder.
+
+	Usage:
+		fs filter [flag]
+
+	Flags:
+		-P, --pattern    [string] REQUIRED       the pattern for filtering, e.g. '*.v'
+
+	Forwardable Flags:
+		-H, --help       [bool]                  display the corresponding help message for a commamd.
+	*/
+
 }

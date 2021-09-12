@@ -18,6 +18,8 @@
 
 module main
 
+import strings
+
 // test_colors_1 - test on how ternminal colors could be modified.
 fn test_colors_1() {
 	println("\n### chalk_test.test_colors_1 ###\n")
@@ -98,3 +100,7 @@ fn test_chalk_gallery() {
 	println(chalk_gallery())
 }
 
+// test_levenshtein_distance - test the levenshtein distance between a possible typo command.
+fn ignore_test_levenshtein_distance() {
+	println('distance ~ ${strings.levenshtein_distance("course", "curse")}')
+}

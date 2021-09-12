@@ -4,3 +4,6 @@ scripts/setEnv.sh
 
 # feature list for development housekeep only
 _feature.list
+
+# a build named vcmd
+vcmd
