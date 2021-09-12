@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-module main
+module vcommander
 
 import os
 import strings
@@ -94,7 +94,7 @@ fn test_run_handler() {
 		name: "parent"
 	}
 	// run without a handler ... cause exception
-	mut status := i8(main.status_fail)
+	mut status := i8(vcommander.status_fail)
 	status = cmd.run() or {
 		assert "$err" == "[Command][run] invalid handler, []"
 		i8(status_fail)
@@ -105,25 +105,25 @@ fn test_run_handler() {
 	run_fn := fn (c &Command, args []string) ?i8 {
 		//println("[debug] $c")
 		if c.name == "parent" {
-			return i8(main.status_ok)
+			return i8(vcommander.status_ok)
 		} else {
 			return error("expected to be `parent` command but... it was $c.name")
 		}
 	}
 	// reset
-	status = i8(main.status_fail)
+	status = i8(vcommander.status_fail)
 	status = cmd.run(run_fn) or {
-		assert "should not have error for the 1st function, instead should return ${i8(main.status_ok)}, err -> $err" == ""
-		i8(main.status_fail)
+		assert "should not have error for the 1st function, instead should return ${i8(vcommander.status_ok)}, err -> $err" == ""
+		i8(vcommander.status_fail)
 	}
-	assert status == i8(main.status_ok)
+	assert status == i8(vcommander.status_ok)
 	// run again without providing the fn pointer (which means re-use the existing fn)
-	status = i8(main.status_fail)
+	status = i8(vcommander.status_fail)
 	status = cmd.run() or {
-		assert "should not have error for the 1st function, instead should return ${i8(main.status_ok)}, err -> $err" == ""
-		i8(main.status_fail)
+		assert "should not have error for the 1st function, instead should return ${i8(vcommander.status_ok)}, err -> $err" == ""
+		i8(vcommander.status_fail)
 	}
-	assert status == i8(main.status_ok)
+	assert status == i8(vcommander.status_ok)
 
 
 	// run_handler fn with error
@@ -131,12 +131,12 @@ fn test_run_handler() {
 		return error("Throw exception no matter what...")
 	}
 	// reset
-	status = i8(main.status_fail)
+	status = i8(vcommander.status_fail)
 	status = cmd.run(run_err_fn) or {
 		assert err.msg == "[Command][run] error found, reason: Throw exception no matter what..."
-		i8(main.status_ok)
+		i8(vcommander.status_ok)
 	}
-	assert status == i8(main.status_ok)
+	assert status == i8(vcommander.status_ok)
 }
 
 // [deprecated] replaced by description field instead
@@ -182,7 +182,7 @@ fn test_args_parsing_0() {
 	cmd.set_flag(true, "E", "", flag_type_map_of_string, "", false)
 	cmd.set_flag(false, "", "h", flag_type_bool, "", true)
 
-	mut status := i8(main.status_fail)
+	mut status := i8(vcommander.status_fail)
 	status = cmd.run(fn (c &Command, args []string) ?i8 {
 		assert c.parsed_local_flags_map.len == 1
 		assert c.parsed_forwardable_flags_map.len == 1
@@ -220,14 +220,14 @@ fn test_args_parsing_0() {
 
 		// length check...
 		if args.len == 3 {
-			return i8(main.status_ok)
+			return i8(vcommander.status_ok)
 		}
 		return error("expect argument length to be exactly 3")
 	}) or {
 		assert "[Command][run] error found, reason: expect argument length to be exactly 3" == "$err"
-		i8(main.status_fail)
+		i8(vcommander.status_fail)
 	}
-	assert status == i8(main.status_ok)
+	assert status == i8(vcommander.status_ok)
 	
 	// handling on parsing...
 	cmd = Command{

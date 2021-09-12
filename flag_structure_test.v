@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-module main
+module vcommander
 
 // test_make_flag_1 - test on creation of flag<int>
 fn test_make_flag_1() {

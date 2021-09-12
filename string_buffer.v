@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-module main
+module vcommander
 
 // Stringbuffer - a replicate copy of the strings.Builder due to a compilation BUG.
 // reference link -> https://github.com/vlang/v/blob/fe08e1c504a512a1d305508a506bb6c556d1059d/vlib/strings/builder.v

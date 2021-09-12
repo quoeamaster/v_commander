@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+module vcommander
+
 // Parsed_flag - a structure used during the argument parsing phase.
 struct Parsed_flag {
 mut:

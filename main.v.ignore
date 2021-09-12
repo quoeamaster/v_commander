@@ -72,20 +72,4 @@ fn main() {
 	if status != i8(status_ok) {
 		panic("something wrong with the command execution")
 	}
-
-	// ISSUES -> running subcommand help has an error message??
-	/*
-	[Command][parse_arguments] invalid value, [filter] is not a valid sub-command NOR a valid flag.
-	To filter out only certain files within the current folder.
-
-	Usage:
-		fs filter [flag]
-
-	Flags:
-		-P, --pattern    [string] REQUIRED       the pattern for filtering, e.g. '*.v'
-
-	Forwardable Flags:
-		-H, --help       [bool]                  display the corresponding help message for a commamd.
-	*/
-
 }

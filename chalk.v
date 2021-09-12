@@ -23,7 +23,7 @@
 // - reset -> reset color scheme manually, useful when xxx_forever() has been called earlier
 // - gallery -> displays a gallery of possible colors to the stdout; kind of reference for the developer to choose.
 
-module main
+module vcommander
 
 pub const (
 	// color_reset - the default / resetted color for the console output.
