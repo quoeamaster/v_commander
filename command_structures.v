@@ -106,7 +106,7 @@ fn default_help_handler(mut c &Command) string {
 	// usage
 	s.write_string("Usage:\n")
 	mut cmd_hierarchy := target_cmd.name
-	mut c_cmd := target_cmd
+	mut c_cmd := &target_cmd
 	for {
 		//println("[debug] current-name: ${c_cmd.name}, parent-name: ${c_cmd.parent.name}")
 		if c_cmd.parent.name != empty_command.name {
@@ -184,7 +184,8 @@ fn create_help_for_flags(flags []Flag, mut s &Stringbuffer) {
 // add_command - add the provided sub-command. Also updates the [parent] reference.
 pub fn (mut c Command) add_command(mut cmd Command) {
 	cmd.parent = &c
-	c.sub_commands << cmd
+	// c.sub_commands << cmd
+	c.sub_commands << &cmd
 }
 
 // run - set the provided [handler] to the CLI and execute it. [run] provides the core functionality for this CLI.
@@ -391,7 +392,10 @@ fn (mut c Command) parse_arguments() ?&Command {
 	//    c.merge_with_parent_forwardable_flags() 
 	//		then decided how to parse all the values available.
 	//
-	mut target_command := &c
+	// [bug??] could not directly assign &c to target_command in 1 go, 
+	// hence would need to assign to an empty &Command{} to establish the correct type.
+	mut target_command := &Command{}
+	target_command = &c
 	if c.sub_command_sequence.len > 0 {
 		// whether the sub command sequences are valid
 		// example. course.register.update is the sequence; so would need to check whether
@@ -501,7 +505,9 @@ fn (mut c Command) parse_arguments() ?&Command {
 	// check whether any unknown flags parsed.
 	target_command.has_any_unknown_flags(parsed_flags_map)?
 
-	return &target_command
+	// [warning] now target_command is of type &Command{}, hence directly return it instead of prepending a "&"
+	//return &target_command
+	return target_command
 }
 
 // set_parsed_flag_value_by_string_value - set the provided flag's value to the corresponding parsed flag map.
@@ -688,7 +694,10 @@ fn (mut c Command) set_parsed_flag_kv_value(is_local bool, key string, subkey st
 		// is main [key] available???
 		if key in c.parsed_local_flags_map {
 			// casting... (vs match syntax)
-			m := c.parsed_local_flags_map[key]
+			m := c.parsed_local_flags_map[key] or {
+				println("[Command][set_parsed_flag_kv_value] local-> failed to get key")
+				map[string]string{}
+			}
 			match mut m {
 				map[string]string {
 					//println("##### -> ${typeof(m).name} OR ${m.type_name()}")
@@ -705,7 +714,10 @@ fn (mut c Command) set_parsed_flag_kv_value(is_local bool, key string, subkey st
 		// is main [key] available???
 		if key in c.parsed_forwardable_flags_map {
 			// casting... (vs match syntax)
-			m := c.parsed_forwardable_flags_map[key]
+			m := c.parsed_forwardable_flags_map[key] or {
+				println("[Command][set_parsed_flag_kv_value] fwd-> failed to get key")
+				map[string]string{}
+			}
 			match mut m {
 				map[string]string {
 					//println("##### -> ${typeof(m).name} OR ${m.type_name()}")
@@ -751,9 +763,9 @@ fn (c Command) is_argument_valid_subcommand(arg string) &Command {
 	m := c.get_all_subcommand_names(c.name)
 	// [debug]
 	//println("** [debug] $m\n_ $arg _")
-	mut target_command := Command{}
+	mut target_command := &Command{}
 	if arg in m {
-		target_command = c
+		target_command = &c
 		cmd_hierarchy := m[arg].split(".")
 		for i, c_name in cmd_hierarchy {
 			// skip the 1st cmd hierarchy as its the parent's name in general
@@ -781,7 +793,8 @@ fn (c Command) is_argument_valid_subcommand(arg string) &Command {
 			}
 		} // end - for (cmd_hierarchy)
 	}
-	return &target_command
+	//return &target_command
+	return target_command
 }
 
 // get_flag_by_name - return the Flag that matches the [flag_name]. 
@@ -859,7 +872,10 @@ pub fn (c Command) get_string_flag_value(is_local bool, flag string, flag_short 
 	
 	// search for the flag_name from the parsed-flag repositories
 	if is_local == true {
-		s := c.parsed_local_flags_map[flag_name]
+		s := c.parsed_local_flags_map[flag_name] or {
+			//println("[Command][get_string_flag_value] local-> failed to get string flag value ${flag_name}")
+			0
+		}
 		match s {
 			string { return s }
 			else { 
@@ -871,7 +887,10 @@ pub fn (c Command) get_string_flag_value(is_local bool, flag string, flag_short 
 			}
 		}
 	} else {
-		s := c.parsed_forwardable_flags_map[flag_name]
+		s := c.parsed_forwardable_flags_map[flag_name] or {
+			//println("[Command][get_string_flag_value] fwd-> failed to get string flag value ${flag_name}")
+			0
+		}
 		match s {
 			string { return s }
 			else { 
@@ -911,7 +930,10 @@ pub fn (c Command) get_int_flag_value(is_local bool, flag string, flag_short str
 
 	// search for the flag_name from the parsed-flag repositories
 	if is_local == true {
-		s := c.parsed_local_flags_map[flag_name]
+		s := c.parsed_local_flags_map[flag_name] or {
+			//println("[Command][get_int_flag_value] local-> failed to get int flag value ${flag_name}")
+			""
+		}
 		match s {
 			int { return s }
 			else { 
@@ -922,7 +944,10 @@ pub fn (c Command) get_int_flag_value(is_local bool, flag string, flag_short str
 			}
 		}
 	} else {
-		s := c.parsed_forwardable_flags_map[flag_name]
+		s := c.parsed_forwardable_flags_map[flag_name] or {
+			//println("[Command][get_int_flag_value] fwd-> failed to get int flag value ${flag_name}")
+			""
+		}
 		match s {
 			int { return s }
 			else { 
@@ -959,7 +984,10 @@ pub fn (c Command) get_i8_flag_value(is_local bool, flag string, flag_short stri
 
 	// search for the flag_name from the parsed-flag repositories
 	if is_local == true {
-		s := c.parsed_local_flags_map[flag_name]
+		s := c.parsed_local_flags_map[flag_name] or {
+			//println("[Command][get_i8_flag_value] local-> failed to get i8 flag value ${flag_name}")
+			""
+		}
 		match s {
 			i8 { return s }
 			else { 
@@ -970,7 +998,10 @@ pub fn (c Command) get_i8_flag_value(is_local bool, flag string, flag_short stri
 			}
 		}
 	} else {
-		s := c.parsed_forwardable_flags_map[flag_name]
+		s := c.parsed_forwardable_flags_map[flag_name] or {
+			//println("[Command][get_i8_flag_value] fwd-> failed to get i8 flag value ${flag_name}")
+			""
+		}
 		match s {
 			i8 { return s }
 			else { 
@@ -1007,7 +1038,10 @@ pub fn (c Command) get_bool_flag_value(is_local bool, flag string, flag_short st
 
 	// search for the flag_name from the parsed-flag repositories
 	if is_local == true {
-		s := c.parsed_local_flags_map[flag_name]
+		s := c.parsed_local_flags_map[flag_name] or {
+			//println("[Command][get_bool_flag_value] local-> failed to get bool flag value ${flag_name}")
+			""
+		}
 		match s {
 			bool { return s }
 			else { 
@@ -1018,7 +1052,10 @@ pub fn (c Command) get_bool_flag_value(is_local bool, flag string, flag_short st
 			}
 		}
 	} else {
-		s := c.parsed_forwardable_flags_map[flag_name]
+		s := c.parsed_forwardable_flags_map[flag_name] or {
+			//println("[Command][get_bool_flag_value] fwd-> failed to get bool flag value ${flag_name}")
+			""
+		}
 		match s {
 			bool { return s }
 			else { 
@@ -1055,7 +1092,10 @@ pub fn (c Command) get_float_flag_value(is_local bool, flag string, flag_short s
 
 	// search for the flag_name from the parsed-flag repositories
 	if is_local == true {
-		s := c.parsed_local_flags_map[flag_name]
+		s := c.parsed_local_flags_map[flag_name] or {
+			//println("[Command][get_float_flag_value] local-> failed to get float flag value ${flag_name}")
+			""
+		}
 		match s {
 			f32 { return s }
 			else {
@@ -1066,7 +1106,10 @@ pub fn (c Command) get_float_flag_value(is_local bool, flag string, flag_short s
 			}
 		}
 	} else {
-		s := c.parsed_forwardable_flags_map[flag_name]
+		s := c.parsed_forwardable_flags_map[flag_name] or {
+			//println("[Command][get_float_flag_value] fwd-> failed to get float flag value ${flag_name}")
+			""
+		}
 		match s {
 			f32 { return s }
 			else { 
@@ -1087,13 +1130,19 @@ pub fn (c Command) get_map_of_string_flag_value(is_local bool, flag string, flag
 	}
 	// search for the flag_name from the parsed-flag repositories
 	if is_local == true {
-		s := c.parsed_local_flags_map[flag_name]
+		s := c.parsed_local_flags_map[flag_name] or {
+			//println("[Command][get_map_of_string_flag_value] local-> failed to get map-of-string flag value ${flag_name}")
+			""
+		}
 		match s {
 			map[string]string { return s }
 			else { return error("[Command][get_map_of_string_flag_value] local flag either not-found or the data-type is not a 'map of string'.") }
 		}
 	} else {
-		s := c.parsed_forwardable_flags_map[flag_name]
+		s := c.parsed_forwardable_flags_map[flag_name] or {
+			//println("[Command][get_map_of_string_flag_value] fwd-> failed to get map-of-string flag value ${flag_name}")
+			""
+		}
 		match s {
 			map[string]string { return s }
 			else { return error("[Command][get_map_of_string_flag_value] forwardable flag either not-found or the data-type is not a 'map of string'.") }

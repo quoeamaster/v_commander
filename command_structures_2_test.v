@@ -143,7 +143,9 @@ fn test_sub_commands_2 () {
 		(&Command{})
 	}
 	assert target_command.name == "course"
-	any_v := target_command.parsed_local_flags_map["catalog"]
+	any_v := target_command.parsed_local_flags_map["catalog"] or {
+		0
+	}
 	match any_v {
 		string {
 			assert any_v == "mba accounting"
@@ -268,19 +270,25 @@ fn test_sub_commands_2 () {
 		panic("d3. unexpected [$err]")
 	}
 	assert target_command.name == "register"
-	any_v2 := target_command.parsed_local_flags_map["catalog"]
+	any_v2 := target_command.parsed_local_flags_map["catalog"] or {
+		0
+	}
 	match any_v2 {
 		string { assert any_v2 == "should not happen" }
 		else { println("[warning] on getting an unknown value from Any-typed map -> $any_v2") }
 	}
 	// -N == --name
-	any_v2a := target_command.parsed_local_flags_map['name']
+	any_v2a := target_command.parsed_local_flags_map['name'] or {
+		0
+	}
 	match any_v2a {
 		string { assert any_v2a == "ShEreN" }
 		else { panic("d5. unexpected, $any_v2a") }
 	}
 	// --gender
-	any_v2b := target_command.parsed_local_flags_map['gender']
+	any_v2b := target_command.parsed_local_flags_map['gender'] or {
+		0
+	}
 	match any_v2b {
 		string { assert any_v2b == "F" }
 		else { panic("d6. unexpected, $any_v2b") }
@@ -288,7 +296,9 @@ fn test_sub_commands_2 () {
 	// check whether the flag is EVEN set...
 	if target_command.is_flag_set(false, "help", "H") {
 		// should not happen as forwardable flag has no "help" flag set
-		any_v2c := target_command.parsed_forwardable_flags_map['help']
+		any_v2c := target_command.parsed_forwardable_flags_map['help'] or {
+			0
+		}
 		println("$target_command.parsed_forwardable_flags_map -> $any_v2c")
 		match any_v2c {
 			bool { assert any_v2c == false }
@@ -522,6 +532,7 @@ fn test_sub_commands_2 () {
 	target_command = course_parent_cmd_1.parse_arguments() or {
 		panic("f5e.4. unexpected, $err")
 	}
+	println("a. 1st check")
 	assert target_command.name == "registration"
 	assert is_help_value_correct(target_command, false, "help", false) == true
 	assert is_help_value_correct(target_command, false, "help", true) == false
@@ -534,6 +545,7 @@ fn test_sub_commands_2 () {
 	target_command = course_parent_cmd_1.parse_arguments() or {
 		panic("f5e.4. unexpected, $err")
 	}
+	println("b. 2nd check")
 	assert target_command.name == "registration"
 	assert is_help_value_correct(target_command, false, "help", false) == true
 	assert is_i8_value_correct(target_command, false, "format", i8(0)) == true
@@ -543,6 +555,7 @@ fn test_sub_commands_2 () {
 	target_command = course_parent_cmd_1.parse_arguments() or {
 		panic("f5e.5. unexpected, $err")
 	}
+	println("c. 3rd check")
 	assert target_command.name == "course"
 	assert is_help_value_correct(target_command, false, "help", false) == true
 	assert is_string_value_correct(target_command, true, "catalog", "reg") == true

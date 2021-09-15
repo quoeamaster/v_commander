@@ -190,29 +190,39 @@ fn test_args_parsing_0() {
 		assert ("unknown" in c.parsed_local_flags_map) == false
 		assert c.name == "parent1"
 
-		v := c.parsed_local_flags_map["E"]
+		v := c.parsed_local_flags_map["E"] or {
+			""
+		}
 		match v {
 			map[string]string {
 				assert ("a" in v) == true
 				assert ("unknown" in v) == false
 			}
-			else {}
+			else { panic("aa. should be able to get value [E]") }
 		}
-		v2 := c.parsed_forwardable_flags_map["h"]
+		v2 := c.parsed_forwardable_flags_map["h"] or {
+			""
+		}
 		match v2 {
 			bool {
 				assert v2 == true
 			}
-			else {}
+			else { panic("ab. should be able to get value [h]") }
 		}
 		// not available key...
-		v3 := c.parsed_local_flags_map["unknown"]
+		v3 := c.parsed_local_flags_map["unknown"] or {
+			""
+		}
 		match v3 {
 			int {
 				println("### never happen...")
 			}
 			else {
-				assert "unknown sum type value" == "$v3"
+				if v3 is string {
+					assert v3 == ""
+				}
+				// [deprecated] this error message is gone since v 0.2.4
+				//assert "unknown sum type value" == "$v3"
 			}
 		}
 		// [debug]
@@ -245,7 +255,9 @@ fn test_args_parsing_0() {
 		assert ("keyValue" in c.parsed_forwardable_flags_map) == true
 		assert ("kv" in c.parsed_forwardable_flags_map) == false
 
-		v4 := c.parsed_forwardable_flags_map["keyValue"]
+		v4 := c.parsed_forwardable_flags_map["keyValue"] or {
+			""
+		}
 		match v4 {
 			map[string]string {
 				assert v4.len == 2
@@ -258,7 +270,7 @@ fn test_args_parsing_0() {
 				assert v4["unknown"] == "" // default value for a map[string]string == ""
 				assert typeof(v4["age"]).name == "string"
 			}
-			else {}
+			else { panic("aa. should be able to get value [keyValue]") }
 		}
 		// alternatively...
 		map_kv := c.get_map_of_string_flag_value(false, "keyValue", "kv") or {
@@ -501,7 +513,7 @@ fn test_adding_flags() {
 		}
 		return i8(status_fail)
 	}) or {
-		panic("unexpected error, reason: $err")
+		panic("file-read handler - unexpected error, reason: $err")
 		i8(status_fail)
 	}
 	assert result == i8(status_ok)
@@ -553,7 +565,7 @@ fn test_remove_flag() {
 	cmd.set_flag(false, "", "b", flag_type_i8, "best score", false)
 	cmd.set_arguments([ "--contains" "how are you TODAY?", "-a", "12", "-b", "100" ])
 	mut t_cmd := cmd.parse_arguments() or {
-		panic("unexpected error in parsing arguments, reason: $err")
+		panic("a. unexpected error in parsing arguments, reason: $err")
 	}
 	assert t_cmd.remove_flag(true, "contains", "C") == true
 	assert t_cmd.remove_flag(false, "", "a") == true
@@ -564,21 +576,21 @@ fn test_remove_flag() {
 	
 	// * test on after removing flags, the parse would fail due to invalid flag
 	t_cmd = cmd.parse_arguments() or {
-		idx := err.msg.index("[Command][parse_arguments] invalid flag:") or {
-			panic("unexpected error in parsing arguments, reason: $err")
+		idx := err.msg.index("unknown key --contains") or {
+			panic("b. unexpected error in parsing arguments, reason: $err")
 		}
 		(&Command{})
 	}
-	assert t_cmd.name == "c1"
-	//println("[debug] $t_cmd")
-
+	// [deprecated] should return an empty command instead as not parsed successfully.
+	//assert t_cmd.name == "c1"
+	
 	// * test on removing a valid key but on the wrong repo; should return false...
 	cmd.set_flag(true, "contains", "C", flag_type_string, "contains provided text", false)
 	cmd.set_flag(false, "", "a", flag_type_i8, "age value", true)
 	cmd.set_arguments([ "--contains" "how are you TODAY?", "-a", "12", "-b", "100" ])
 	t_cmd = &Command{}
 	t_cmd = cmd.parse_arguments() or {
-		panic("unexpected error in parsing arguments, reason: $err")
+		panic("c. unexpected error in parsing arguments, reason: $err")
 		(&Command{})
 	}
 	assert t_cmd.name != ""
@@ -1137,13 +1149,17 @@ fn ignore_test_map_of_any_bug() {
 	test["key_int"] = 123
 	test["key_kv"] = map[string]string{}
 
-	mut kv := test["key_kv"]
+	mut kv := test["key_kv"] or {
+		""
+	}
 	//println("!!! $kv")
 	if kv is map[string]string {
 		//println("!!! $kv")
 		//kv["message"] = "hello world" <- fail as AAny has no index capability????
 	}
-	mut iv := test["key_int"]
+	mut iv := test["key_int"] or {
+		""
+	}
 	if iv is int {
 		//println("!!! $iv")
 		println("hey int $iv")
@@ -1155,7 +1171,9 @@ fn ignore_test_map_of_any_bug() {
 			println("int $k -> $v")
 		} else if v is map[string]string {
 			println("b4 ${typeof(v).name}")
-			v1 := test[k]
+			v1 := test[k] or {
+				""
+			}
 			/* proved not working
 			if v1 is map[string]string {
 				println("after ${typeof(v1).name}")
@@ -1169,7 +1187,7 @@ fn ignore_test_map_of_any_bug() {
 					v1["gender"] = "U"
 					v1["hobbies"] = "skating,swimming,running"
 				}
-				else {}
+				else { panic("bb. should not happen and able to get key [$k]") }
 			}
 			println("kv $k -> $v, ${typeof(v).name}")
 		}
